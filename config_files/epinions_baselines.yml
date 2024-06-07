@@ -1,0 +1,44 @@
+experiment:
+  backend: pytorch
+  dataset: epinions
+  data_config:
+    strategy: dataset
+    dataset_path: ../data/epinions/dataset.tsv
+  prefiltering:
+    - strategy: global_threshold
+      threshold: 4
+    - strategy: iterative_k_core
+      core: 2
+  binarize: True
+  splitting:
+    save_on_disk: True
+    save_folder: ../data/{0}/splitting/
+    test_splitting:
+      test_ratio: 0.2
+      strategy: random_subsampling
+      #folds: 5
+  top_k: 50
+  evaluation:
+    cutoffs: 20 #[ 10, 20, 50 ]
+    simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR ] #nDCG
+  gpu: 1
+  external_models_path: ../external/models/__init__.py
+  comparison_lsh: True
+  models:
+    ItemKNN:
+      meta:
+        save_recs: True
+        verbose: True
+        #hyper_max_evals: 20
+        hyper_opt_alg: grid #tpe
+      neighbors: [ 600 ]
+      similarity: baseline #[rp_custom,rp_faiss]
+    UserKNN:
+      meta:
+        save_recs: True
+        verbose: True
+        #hyper_max_evals: 20
+        hyper_opt_alg: grid #tpe
+      neighbors: [ 300 ]
+      similarity: baseline #[rp_custom,rp_faiss]
+

@@ -1,0 +1,2 @@
+model	nDCGRendle2020	Recall	HR	Precision	MAP	MRR	similarity_time
+ItemKNN_nn=200_sim=baseline_imp=standard_bin=False_bits=None_tables=None_shrink=0_norm=True_asymalpha=_tvalpha=_tvbeta=_rweights=	0.29420875575379635	0.24781793449564934	0.9087241553202219	0.19079677256681798	0.2567283760887169	0.545731567877217	7.789818286895752
