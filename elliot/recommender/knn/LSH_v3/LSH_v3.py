@@ -1,3 +1,4 @@
+import gc
 import sys
 
 import numpy as np
@@ -59,6 +60,8 @@ class RandomProjections():
             temp = input_matrix.dot(self.projection_matrix[i])
             temp = np.expand_dims(temp, axis=0)
             output[i] = temp
+        # del self.projection_matrix
+        # gc.collect()
         return output.transpose(1, 0, 2)
 
     def _get_vec_candidates(self, vec):
