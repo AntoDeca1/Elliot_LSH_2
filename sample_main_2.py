@@ -35,4 +35,4 @@ if __name__ == '__main__':
         print("Dataset already exists. Skipping download and extraction.")
 
     print("Done! We are now starting the Elliot's experiment.")
-    run_experiment("config_files/amazon_large.yml")
+    run_experiment("config_files/paper_reproducible_config.yml")
