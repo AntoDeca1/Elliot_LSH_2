@@ -41,7 +41,7 @@ def plot_and_save_results(trials, config, print_csv=True):
         similarity = model_dict["similarity"]
         neighbors = model_dict.get("neighbors", None)
         model_name_full = model_name + "::" + similarity
-        if similarity in ["rp_faiss", "rp_custom", "rp_hash_tables"]:
+        if similarity in ["rp_faiss", "rp_custom", "rp_hashtables"]:
             for exp_param in explorable_parameters:
                 value = model_dict.get(exp_param, None)
                 if isinstance(value, list):

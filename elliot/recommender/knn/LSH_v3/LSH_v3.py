@@ -82,7 +82,7 @@ class RandomProjections():
         :return: A sparse matrix of dimensionality (n_items,n_items) or (n_users,n_users) having 1 only in the candidates position
         """
         n = len(self.buckets_matrix)
-        output_matrix = np.zeros((n, n), dtype=int)
+        output_matrix = np.empty((n, n), dtype=int)
         for index, el in enumerate(self.buckets_matrix):
             candidates = list(self._get_vec_candidates(el))
             output_matrix[index, candidates] = 1

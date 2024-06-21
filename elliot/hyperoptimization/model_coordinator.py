@@ -7,15 +7,17 @@ __version__ = '0.3.1'
 __author__ = 'Vito Walter Anelli, Claudio Pomo'
 __email__ = 'vitowalter.anelli@poliba.it, claudio.pomo@poliba.it'
 
+import datetime
 from types import SimpleNamespace
 import typing as t
 import numpy as np
 import logging as pylog
 import time
-
+import pandas as pd
 from elliot.utils import logging
-
+import os
 from hyperopt import STATUS_OK
+from datetime import datetime
 
 
 class ModelCoordinator(object):
@@ -84,7 +86,8 @@ class ModelCoordinator(object):
 
         loss = np.average(losses)
         results_mean = self._average_results(results)
-        # results_std = self._std_results(results)
+        print_baseline_comparisons(self.base, model_params, results_mean)
+        # save_running_results(results_mean, model_params, self.base)
 
         return {
             'loss': loss,
@@ -169,5 +172,52 @@ class ModelCoordinator(object):
                     for type_ in eval_result_types}
                 for k in ks}
 
-    def add_lsh_times(self):
-        pass
+
+def save_running_results(results_mean, model_config, base):
+    """
+    TO BE CHECKED IF HELPFUL
+    :param results_mean:
+    :param model_config:
+    :param base:
+    :return:
+    """
+    print("Saving Experiment results")
+    test_results_dict = results_mean[base.evaluation.cutoffs]["test_results"]
+    test_results_dict["model"] = model_config.name
+    output_df = pd.DataFrame.from_dict(
+        {k: [v] for k, v in test_results_dict.items()})
+    output_df.to_csv(sep="\t", index=False)
+
+
+def print_baseline_comparisons(base, model_params, results_mean):
+    print("------Experiments vs Baseline------------------")
+    test_results_dict = results_mean[base.evaluation.cutoffs]["test_results"].copy()
+    file_path = os.path.join("results_lsh", "comparisons", base.dataset, model_params.name.split("_")[0],
+                             model_params.name.split("_")[0] + "_" + "baseline" + ".tsv")
+
+    if os.path.exists(file_path):
+        print("We have a baseline")
+        baseline_df = pd.read_csv(file_path, sep="\t")
+        ndgc_loss = ((baseline_df["nDCGRendle2020"][0] - test_results_dict["nDCGRendle2020"]) /
+                     baseline_df["nDCGRendle2020"][0]) * 100
+        similarity_time_change = ((baseline_df["similarity_time"][0] - test_results_dict["similarity_time"]) /
+                                  baseline_df["similarity_time"][0]) * 100
+        model_name = model_params.name.split("_")[0]
+        print("--------------------CURRENT EXPERIMENT STATS-------------------------------")
+        print(f" NDCG-Loss: {ndgc_loss} %")
+        print(f" similarity_time_change:  {similarity_time_change} %")
+        print(f" nbits: {model_params.nbits}")
+        print(f" ntables: {model_params.ntables}")
+        print("-----------------------------------------------------------------------------")
+        log_path = f"lsh_logs/{base.dataset}/{model_name}"
+        os.makedirs(log_path, exist_ok=True)
+        test_results_dict["dataset"] = base.dataset
+        test_results_dict["nbits"] = model_params.nbits
+        test_results_dict["ntables"] = model_params.ntables
+        test_results_dict["model"] = model_name + ":" + model_params.similarity
+        print("Saving Results to ")
+        output_df = pd.DataFrame.from_dict(
+            {k: [v] for k, v in test_results_dict.items()})
+        output_df.to_csv(f"{log_path}/{test_results_dict['model']}_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.tsv")
+    else:
+        print("File does not exist")
