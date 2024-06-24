@@ -23,7 +23,7 @@ experiment:
     simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR ] #nDCG
   gpu: 1
   external_models_path: ../external/models/__init__.py
-  plot_lsh: True #Added to plot the lsh results
+  #plot_lsh: True #Added to plot the lsh results
   comparison_lsh: True
   models:
     UserKNN:

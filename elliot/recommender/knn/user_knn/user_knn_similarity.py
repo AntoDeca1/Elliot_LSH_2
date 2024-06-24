@@ -177,9 +177,9 @@ class Similarity(object):
         candidates_retrieval_time = time.time() - prima
         print(candidates_retrieval_time, "Time to pull out the candidates")
         self._lsh_times_obj["candidates_retrieval_time"] = candidates_retrieval_time
-        prima = time.time()
-        del rp
-        print("Time taken to remove the object from memory", time.time() - prima)
+        #prima = time.time()
+        # del rp
+        # print("Time taken to remove the object from memory", time.time() - prima)
         # gc.collect()
 
         prima = time.time()
@@ -235,6 +235,7 @@ class Similarity(object):
         :param candidate_matrix:
         :return:
         """
+
         n_users = candidate_matrix.shape[0]
         data, rows_indices, cols_indptr = [], [], []
         for i in range(n_users):
@@ -250,6 +251,7 @@ class Similarity(object):
             data.extend(sim_scores.squeeze())
             rows_indices.extend(candidate_indices)
         cols_indptr.append(len(data))
+
 
         return data, rows_indices, cols_indptr
 

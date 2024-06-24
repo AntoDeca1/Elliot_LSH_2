@@ -26,14 +26,24 @@ experiment:
   plot_lsh: True #Plot lsh results
   #comparison_lsh: True #Added field just to trigger the function that saves the results in a separate folder(To set only when we run the final experiments)
   models:
-    ItemKNN:
+    UserKNN:
       meta:
         save_recs: True
         verbose: True
         #hyper_max_evals: 20
         hyper_opt_alg: grid #tpe
       neighbors: 200
-      nbits: [ 2,4,8,16,32,64,128,256,512 ] #[ 4,8,12,16,32,64,128 ]
+      nbits: [ 512,256,128,64,32,16,8,4,2 ] #[ 4,8,12,16,32,64,128 ]
       ntables: 1 #[ 1,2,4,8,12,16 ] #Set to 1 for a comparison with rp_faiss
       similarity: rp_faiss #[cosine,rp_custom,rp_faiss,rp_hashtables]
+#    UserKNN:
+#      meta:
+#        save_recs: True
+#        verbose: True
+#        #hyper_max_evals: 20
+#        hyper_opt_alg: grid #tpe
+#      neighbors: 200
+#      nbits: [ 2,4,8,16,32,64,128,256,512 ] #[ 4,8,12,16,32,64,128 ]
+#      ntables: 1 #[ 1,2,4,8,12,16 ] #Set to 1 for a comparison with rp_faiss
+#      similarity: rp_faiss #[cosine,rp_custom,rp_faiss,rp_hashtables]
 

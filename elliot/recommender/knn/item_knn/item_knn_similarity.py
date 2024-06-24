@@ -224,23 +224,37 @@ class Similarity(object):
         :param candidate_matrix:
         :return:
         """
+        prima = time.time()
+
         item_user_matrix = item_user_matrix.tocsr()
         n_items = candidate_matrix.shape[0]
         data, rows_indices, cols_indptr = [], [], []
         for i in range(n_items):
             cols_indptr.append(len(data))
             # Get the indices of the candidates for the i-th item
+            prima = time.time()
             candidate_indices = candidate_matrix[i]
-
+            if i == 0:
+                print("Pick candidates indices", time.time() - prima)
+            prima = time.time()
             # Extract the relevant vectors from URM for these candidates
             URM_candidates = item_user_matrix[candidate_indices, :]
+            if i == 0:
+                print("Pick candidates from the user_item_matrix", time.time() - prima)
 
             # Compute cosine similarity between item i and its candidates
             item_vector = item_user_matrix[i]
+            prima = time.time()
             sim_scores = cosine_similarity(item_vector, URM_candidates)
+            if i == 0:
+                print("Compute similarity scores", time.time() - prima)
             data.extend(sim_scores.squeeze())
             rows_indices.extend(candidate_indices)
         cols_indptr.append(len(data))
+
+        similarity_matrix_time = time.time() - prima
+        print(similarity_matrix_time, "DENTRO Time for calculating the similarity matrix")
+
 
         return data, rows_indices, cols_indptr
 
@@ -274,8 +288,9 @@ class Similarity(object):
         # The item_user_matrix
         self._lsh_times_obj["candidates_retrieval_time"] = candidates_retrieval_time
         # CHECK IF IT MAKES TO SENSE TO DO SO: Idea: Evoid this pattern in the similarity_matrix_time
-        del rp
+        # del rp
         # gc.collect()
+        candidates_matrix = candidates_matrix[:]
         prima = time.time()
         data, rows_indices, cols_indptr = self.compute_candidates_cosine_similarity_fast(item_user_matrix,
                                                                                          candidates_matrix)
