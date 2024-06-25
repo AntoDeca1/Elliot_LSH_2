@@ -66,6 +66,7 @@ class RandomProjections():
         num_candidates = 0
         # For each vector the closest buckets indices in term of hamming dist
         closest_buckets_idxs = [self.hamming(vectors, table_id) for table_id, vectors in enumerate(vec)]
+
         while True:
             new_candidates = set()
             new_candidates_len = 0
@@ -75,57 +76,14 @@ class RandomProjections():
             effective_new_candidates = new_candidates.difference(candidates)
             new_candidates_len += len(effective_new_candidates)
             if num_candidates + new_candidates_len >= k:
-                candidates = candidates | set(
+                candidates.update(
                     np.random.choice(list(effective_new_candidates), (k - num_candidates), replace=False))
                 break
             else:
-                candidates = candidates | set(new_candidates)
+                candidates.update(new_candidates)
                 num_candidates = len(candidates)
                 i += 1
         return candidates
-
-    def _get_vec_candidates(self, vec, k):
-        """
-        For each vector pick his candidates
-        This function uses hamming distance to pick the closest candidates
-        :param vec: shape(n_tables,nbits)
-        :return:
-        """
-        candidates = set()
-        i = 0
-        num_candidates = 0
-        # For each vector the closest buckets indices in term of hamming dist
-        closest_buckets_idxs = [self.hamming(vectors, table_id) for table_id, vectors in enumerate(vec)]
-        while True:
-            new_candidates = []
-            new_candidates_len = 0
-            for index, table in enumerate(self.mapping_):
-                closest_bucket = closest_buckets_idxs[index][i]
-                new_candidates.extend(table[stringify_array(self.all_hashes[index][closest_bucket])])
-                new_candidates_len += len(new_candidates)
-            if num_candidates + new_candidates_len >= k:
-                candidates = candidates | set(np.random.choice(new_candidates, (k - num_candidates), replace=False))
-                break
-            else:
-                candidates = candidates | set(new_candidates)
-                num_candidates += len(new_candidates)
-                i += 1
-        return candidates
-
-    def search(self, k):
-        """
-        Return a sparse matrix of shape n_itemsXn_items(n_usersXn_users) having only the candidate indexes set to 1
-        :param k:
-        :return:
-        """
-        n = len(self.buckets_matrix)
-        output_matrix = np.zeros((n, n), dtype=int)
-        for index, el in enumerate(self.buckets_matrix):
-            candidates = list(self._get_vec_candidates_new(el, k))
-            output_matrix[index, candidates] = 1
-        # N.B Non passare alla scipy matrix rende il tutto piu rapido
-        # return output_matrix
-        return sp.csr_matrix(output_matrix)
 
     def search_2(self, k):
         """
@@ -177,9 +135,7 @@ class RandomProjections():
         :return: Matrix identical to "other_hashes" but ordered relatively to the hamming distance from the current hashed_vec
         Provare a calcolarle in un colpo solo per tutti i vettori
         """
-        # get hamming distance between query vec and all buckets in other_hashes
         hamming_dist = np.count_nonzero(hashed_vec != self.all_hashes[table_id], axis=1)
-        # Indices interal to self.all_hashes[table_id]
         sorted_indices = hamming_dist.argsort()
         return sorted_indices
 
