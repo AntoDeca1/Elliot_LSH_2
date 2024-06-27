@@ -232,22 +232,13 @@ class Similarity(object):
         for i in range(n_items):
             cols_indptr.append(len(data))
             # Get the indices of the candidates for the i-th item
-            prima = time.time()
             candidate_indices = candidate_matrix[i]
-            if i == 0:
-                print("Pick candidates indices", time.time() - prima)
             prima = time.time()
             # Extract the relevant vectors from URM for these candidates
             URM_candidates = item_user_matrix[candidate_indices, :]
-            if i == 0:
-                print("Pick candidates from the user_item_matrix", time.time() - prima)
-
             # Compute cosine similarity between item i and its candidates
             item_vector = item_user_matrix[i]
-            prima = time.time()
             sim_scores = cosine_similarity(item_vector, URM_candidates)
-            if i == 0:
-                print("Compute similarity scores", time.time() - prima)
             data.extend(sim_scores.squeeze())
             rows_indices.extend(candidate_indices)
         cols_indptr.append(len(data))

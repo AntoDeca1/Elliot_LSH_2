@@ -502,28 +502,35 @@ def find_best_experiment_static(baseline_path, experiments_path):
     return pareto_efficient_points
 
 
-def average_column_from_subdirectories(main_directory):
+def average_column_from_subdirectories(main_directory, model="UserKNN", similarity="rp_faiss"):
+    # Model forse non ci serve
     data_frames = []
     main_path = Path(main_directory)
     group_cols = ['Model', 'neighbors', 'ntables', 'nbits']
     columns_to_average = ['nDCGRendle2020', 'Recall', 'HR', 'Precision', 'MAP', 'MRR', 'similarity_time',
-                          'indexing_time', 'candidates_retrieval_time', 'similarity_matrix_time',
-                          'nDCGRendle2020_pct_change', 'Recall_pct_change', 'HR_pct_change', 'Precision_pct_change',
-                          'MAP_pct_change', 'MRR_pct_change', 'similarity_time_pct_change', 'indexing_time_pct_change',
-                          'candidates_retrieval_time_pct_change', 'similarity_matrix_time_pct_change']
+                          'indexing_time', 'candidates_retrieval_time', 'similarity_matrix_time']
 
-    for subdirectory in main_path.iterdir():
-        if subdirectory.is_dir():
-            # Find all CSV files in the subdirectory
-            csv_files = list(subdirectory.glob('*.csv'))
+    metrics_names = ['nDCGRendle2020', 'Recall', 'HR', 'Precision', 'MAP', 'MRR', 'similarity_time',
+                     'indexing_time', 'candidates_retrieval_time', 'similarity_matrix_time']
 
-            # Ensure there is exactly one CSV file in the subdirectory
-            if len(csv_files) == 1:
-                csv_file_path = csv_files[0]
-                df = pd.read_csv(csv_file_path)
-                data_frames.append(df)
-            else:
-                print(f"Warning: {subdirectory} contains {len(csv_files)} CSV files.")
+    filtered_subdirectories = [subdirectory for subdirectory in main_path.iterdir() if
+                               subdirectory.is_dir() and model in str(subdirectory) and similarity in str(
+                                   subdirectory.name)]
+    print(f"Model: {model}")
+    print(f"Similarity: {similarity}")
+    print(f"The average is computed over {len(filtered_subdirectories)} experiments")
+
+    for subdirectory in filtered_subdirectories:
+        # Find all CSV files in the subdirectory
+        csv_files = list(subdirectory.glob('*.csv'))
+
+        # Ensure there is exactly one CSV file in the subdirectory
+        if len(csv_files) == 1:
+            csv_file_path = csv_files[0]
+            df = pd.read_csv(csv_file_path)[group_cols + metrics_names]
+            data_frames.append(df)
+        else:
+            print(f"Warning: {subdirectory} contains {len(csv_files)} CSV files.")
 
     if not data_frames:
         raise ValueError("No valid CSV files found in the subdirectories.")
@@ -532,7 +539,31 @@ def average_column_from_subdirectories(main_directory):
     combined_df = pd.concat(data_frames)
 
     # Group by all columns except the specified one and compute the mean of the specified column
-
     averaged_df = combined_df.groupby(group_cols, as_index=False)[columns_to_average].mean()
+
+    num_metrics = len(metrics_names)
+    cols = 3  # Number of columns for subplots
+    rows = (num_metrics + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows), squeeze=False)
+    axes = axes.flatten()
+
+    for idx, metric in enumerate(metrics_names):
+        ax = axes[idx]
+        ordered_values = averaged_df[metric].tolist()
+        ordered_param_values = averaged_df["nbits"].tolist()  # For now it's hardcoded
+        ax.plot(ordered_param_values, ordered_values, marker="o",
+                label=model + similarity)
+        # Annotate percentage changes
+        for i in range(1, len(ordered_param_values)):
+            percent_change = ((ordered_values[i] - ordered_values[i - 1]) / ordered_values[i - 1]) * 100
+            ax.annotate(f'{percent_change:.1f}%', (ordered_param_values[i], ordered_values[i]),
+                        textcoords="offset points", xytext=(0, 10), ha='center')
+
+        ax.set_xlabel("nbits")
+        ax.set_ylabel(metric)
+        ax.legend()
+
+    plt.tight_layout()
+    plt.show()
 
     return averaged_df

@@ -16,7 +16,6 @@ experiment:
     test_splitting:
       test_ratio: 0.2
       strategy: random_subsampling
-      #folds: 5
   top_k: 50
   evaluation:
     cutoffs: 20 #[ 10, 20, 50 ]

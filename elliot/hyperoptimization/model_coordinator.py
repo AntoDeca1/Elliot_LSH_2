@@ -86,7 +86,8 @@ class ModelCoordinator(object):
 
         loss = np.average(losses)
         results_mean = self._average_results(results)
-        print_baseline_comparisons(self.base, model_params, results_mean)
+        if model_params.similarity in ["rp_faiss", "rp_custom", "rp_hashtables"]:
+            print_baseline_comparisons(self.base, model_params, results_mean)
         # save_running_results(results_mean, model_params, self.base)
 
         return {

@@ -8,14 +8,15 @@ from sklearn.metrics import pairwise_distances
 import sys
 
 """
-Implementation that instead follows Faiss' but without calculating similarities within the LSH class
+Custom implementation that follows Faiss' idea:
 1) For each vector I take the candidates in this way
- 1a) I calculate the hamming distance between the hash of the vector and all other hashes in each table
- 2a) I take all candidates
- 3a) If I have more than k I take k random ones (according to the LSH pinecone article) the approximation is here
- Taken from the article : https://www.pinecone.io/learn/series/faiss/locality-sensitive-hashing-random-projection/
- "A single bucket containing 172_039 vectors. That means that we are choosing our top k values "at random" from those 172K vectors. 
- Clearly, we need to reduce our bucket size." 
+ 1a) Calculate the hamming distance between the hash of the vector and all other hashes in each table
+ 2a) Sort the buckets by increasing hamming distance
+ 3a) Pick the elements from the closest buckets in all the tables calling them new_candidates
+ 4a) Count the number of candidates + new_candidates
+   4a1) If we have more than len(candidates+ new_candidates) pick the right number of candidates from new_candidates randomly
+   4a2) Else continue(repeat from 3a with the second closest bucket in all the tables and so on ......)
+ Taken from the article : https://www.pinecone.io/learn/series/faiss/locality-sensitive-hashing-random-projection/ 
 """
 
 

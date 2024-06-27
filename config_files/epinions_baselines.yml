@@ -23,7 +23,7 @@ experiment:
     simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR ] #nDCG
   gpu: 1
   external_models_path: ../external/models/__init__.py
-  comparison_lsh: True
+  #comparison_lsh: True
   models:
     ItemKNN:
       meta:
@@ -32,7 +32,7 @@ experiment:
         #hyper_max_evals: 20
         hyper_opt_alg: grid #tpe
       neighbors: [ 600 ]
-      similarity: baseline #[rp_custom,rp_faiss]
+      similarity: cosine #[rp_custom,rp_faiss]
     UserKNN:
       meta:
         save_recs: True
@@ -40,5 +40,5 @@ experiment:
         #hyper_max_evals: 20
         hyper_opt_alg: grid #tpe
       neighbors: [ 300 ]
-      similarity: baseline #[rp_custom,rp_faiss]
+      similarity: cosine #[rp_custom,rp_faiss]
 
