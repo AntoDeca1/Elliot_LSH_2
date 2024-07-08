@@ -22,9 +22,19 @@ experiment:
     simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR ] #nDCG
   gpu: 1
   external_models_path: ../external/models/__init__.py
-  plot_lsh: True #Plot lsh results
-  #comparison_lsh: True #Added field just to trigger the function that saves the results in a separate folder(To set only when we run the final experiments)
+  #plot_lsh: True #Plot lsh results(Please set it to true only if there is only one hyperparamater list)
+  comparison_lsh: True #Added field just to trigger the function that saves the results in a separate folder(To set only when we run the final experiments)
   models:
+    ItemKNN:
+      meta:
+        save_recs: True
+        verbose: True
+        #hyper_max_evals: 20
+        hyper_opt_alg: grid #tpe
+      neighbors: 200
+      nbits: [ 2,4,8,12,14,16,18,24,32,64 ] #[ 4,8,12,16,32,64,128 ]
+      ntables: [ 2,4,6,8,10,12 ]  #[ 1,2,4,8,12,16 ] #Set to 1 for a comparison with rp_faiss
+      similarity: rp_hashtables #[cosine,baseline, rp_custom,rp_custommp, rp_faiss,rp_faisslike,rp_hashtables]
     UserKNN:
       meta:
         save_recs: True
@@ -32,17 +42,8 @@ experiment:
         #hyper_max_evals: 20
         hyper_opt_alg: grid #tpe
       neighbors: 200
-      nbits: [ 512,256,128,64,32,16,8,4,2 ] #[ 4,8,12,16,32,64,128 ]
-      ntables: 1 #[ 1,2,4,8,12,16 ] #Set to 1 for a comparison with rp_faiss
-      similarity: rp_faiss #[cosine,rp_custom,rp_faiss,rp_hashtables]
-#    UserKNN:
-#      meta:
-#        save_recs: True
-#        verbose: True
-#        #hyper_max_evals: 20
-#        hyper_opt_alg: grid #tpe
-#      neighbors: 200
-#      nbits: [ 2,4,8,16,32,64,128,256,512 ] #[ 4,8,12,16,32,64,128 ]
-#      ntables: 1 #[ 1,2,4,8,12,16 ] #Set to 1 for a comparison with rp_faiss
-#      similarity: rp_faiss #[cosine,rp_custom,rp_faiss,rp_hashtables]
+      nbits: [ 2,4,8,12,14,16,18,24,32,64 ] #[ 4,8,12,16,32,64,128 ]
+      ntables: [ 2,4,6,8,10,12 ] #[ 1,2,4,8,12,16 ] #Set to 1 for a comparison with rp_faiss
+      similarity: rp_hashtables #[cosine,baseline, rp_custom,rp_custommp, rp_faiss,rp_faisslike,rp_hashtables]
+
 

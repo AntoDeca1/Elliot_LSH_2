@@ -41,7 +41,7 @@ def plot_and_save_results(trials, config, print_csv=True):
         similarity = model_dict["similarity"]
         neighbors = model_dict.get("neighbors", None)
         model_name_full = model_name + "::" + similarity
-        if similarity in ["rp_faiss", "rp_custom", "rp_hashtables"]:
+        if similarity in ["rp_faiss", "rp_custom", "rp_hashtables", "rp_custommp", "rp_faisslike"]:
             for exp_param in explorable_parameters:
                 value = model_dict.get(exp_param, None)
                 if isinstance(value, list):
@@ -115,73 +115,6 @@ def plot_and_save_results(trials, config, print_csv=True):
                                     f"{model_name_full}_{variable_parameter}_{neighbors}_{today}_results.csv")
             results_df.to_csv(csv_path, index=False)
             results_df.to_excel(excel_path, index=False)
-
-
-def find_bext_experiment_interactive(baseline_path, experiments_path):  # Load the data
-    # Load the data
-    baseline_data = pd.read_csv(baseline_path, sep='\t')
-    experiments_data = pd.read_csv(experiments_path, sep='\t')
-
-    # Extract baseline metrics
-    baseline_ndcg = baseline_data['nDCGRendle2020'].iloc[0]
-    baseline_similarity_time = baseline_data['similarity_time'].iloc[0]
-
-    # Calculate differences and adjust labels for percentage changes
-    experiments_data['NDCG_loss'] = baseline_ndcg - experiments_data['nDCGRendle2020']
-    experiments_data['similarity_time_difference'] = experiments_data['similarity_time'] - baseline_similarity_time
-    experiments_data['NDCG_loss_percent'] = (experiments_data['NDCG_loss'] / baseline_ndcg) * 100
-    experiments_data['similarity_time_change'] = experiments_data['similarity_time_difference'].apply(
-        lambda x: f"+{abs(x):.2f}" if x != 0 else "+0.00"
-    )
-    experiments_data['similarity_time_change_label'] = experiments_data['similarity_time_difference'].apply(
-        lambda x: "increase" if x > 0 else ("decrease" if x < 0 else "no change")
-    )
-
-    # Identify the best experiment based on minimal NDCG loss and less time increase
-    experiments_data['optimization_score'] = abs(experiments_data['NDCG_loss']) + abs(
-        experiments_data['similarity_time_difference'])
-    best_experiment_index = experiments_data['optimization_score'].idxmin()
-    experiments_data['is_best'] = False
-    experiments_data.loc[best_experiment_index, 'is_best'] = True  # Mark the best experiment
-
-    # Interactive Scatter Plot using Plotly
-    fig = px.scatter(experiments_data, x='similarity_time', y='NDCG_loss_percent',
-                     hover_data=experiments_data.columns, color='similarity_time_change_label',
-                     title='Experiments vs. Baseline',
-                     labels={'similarity_time': 'Similarity Time (s)', 'NDCG_loss_percent': 'NDCG Loss (%)'})
-    fig.add_vline(x=baseline_similarity_time, line_dash="dash", line_color="green", annotation_text="Baseline")
-    fig.add_trace(
-        px.scatter(experiments_data[experiments_data['is_best'] == True], x='similarity_time', y='NDCG_loss_percent',
-                   hover_data=experiments_data.columns).data[0].update(marker=dict(color='red', size=12),
-                                                                       name='Best Experiment'))
-    fig.show()
-
-    # Histogram Comparison of Baseline and Best Experiment
-    categories = ['nDCGRendle2020', 'similarity_time']
-    baseline_values = [baseline_ndcg, baseline_similarity_time]
-    best_values = [experiments_data.loc[best_experiment_index, 'nDCGRendle2020'],
-                   experiments_data.loc[best_experiment_index, 'similarity_time']]
-    fig_hist = go.Figure(data=[
-        go.Bar(name='Baseline', x=categories, y=baseline_values),
-        go.Bar(name='Best Experiment', x=categories, y=best_values)
-    ])
-    fig_hist.update_layout(barmode='group', title='Baseline vs Best Experiment Comparison')
-    fig_hist.show()
-
-    # Print comprehensive comparison and best experiment details
-    print("\nAll Experiments vs Baseline:")
-    print(experiments_data[['model', 'NDCG_loss_percent', 'similarity_time_change', 'similarity_time_change_label']])
-
-    print("\nBest Experiment Details:")
-    best_experiment = experiments_data[experiments_data['is_best'] == True].iloc[0]
-    print(best_experiment[['model', 'nDCGRendle2020', 'similarity_time', 'NDCG_loss_percent', 'similarity_time_change',
-                           'similarity_time_change_label']])
-
-    print("\nBaseline Details:")
-    print(
-        f"Model: {baseline_data['model'].iloc[0]}, nDCGRendle2020: {baseline_ndcg}, Similarity Time: {baseline_similarity_time}")
-
-    return best_experiment
 
 
 def is_pareto_efficient(costs):
@@ -502,6 +435,72 @@ def find_best_experiment_static(baseline_path, experiments_path):
     return pareto_efficient_points
 
 
+def compare_experiments(first_experiments_path, second_experiments_path, variable_parameter="nbits"):
+    # Load the data
+    first_experiments_data = pd.read_csv(first_experiments_path, sep='\t')
+    second_experiments_data = pd.read_csv(second_experiments_path, sep='\t')
+
+    first_experiment_model_name=first_experiments_data["model"][0].split("=")[2]
+    second_experiment_model_name=second_experiments_data["model"][0].split("=")[2]
+
+    metrics = first_experiments_data.columns[1:].tolist()
+    if len(first_experiments_data) != len(second_experiments_data):
+        raise Exception("The two dataframe should have the same shape")
+
+    base_path = os.path.dirname(first_experiments_path)
+    dir_name = os.path.join(base_path, first_experiments_path.split("/")[-1].split(".")[0] + "_" + \
+                            second_experiments_path.split("/")[-1].split("_")[-1].split(".")[0] + "_comparison")
+
+    # Create the directory if it does not exist
+    os.makedirs(dir_name, exist_ok=True)
+
+    # Expand and sort dataframes
+    first_experiments_data = expand_results_dataframe(first_experiments_data).sort_values(by=variable_parameter)
+    second_experiments_data = expand_results_dataframe(second_experiments_data).sort_values(by=variable_parameter)
+
+    num_metrics = len(metrics)
+    cols = 3  # Number of columns for subplots
+    rows = (num_metrics + cols - 1) // cols  # Calculate required number of rows
+
+    fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows), squeeze=False)
+    axes = axes.flatten()  # Flatten the axes array for easy iteration
+
+    variable_values = first_experiments_data[variable_parameter].values
+
+    # Plot each metric in a different subplot
+    for idx, metric in enumerate(metrics):
+        ax = axes[idx]
+        first_values = first_experiments_data[metric].values
+        second_values = second_experiments_data[metric].values
+
+        ax.plot(variable_values, first_values, marker="o", label=f"{first_experiment_model_name}", color="blue")
+        ax.plot(variable_values, second_values, marker="o", label=f"{second_experiment_model_name}t", color="orange")
+
+        # Annotate percentage changes for first experiment
+        for i in range(1, len(variable_values)):
+            percent_change = ((first_values[i] - first_values[i - 1]) / first_values[i - 1]) * 100
+            ax.annotate(f'{percent_change:.1f}%', (variable_values[i], first_values[i]),
+                        textcoords="offset points", xytext=(0, 10), ha='center', color='blue')
+
+        # Annotate percentage changes for second experiment
+        for i in range(1, len(variable_values)):
+            percent_change = ((second_values[i] - second_values[i - 1]) / second_values[i - 1]) * 100
+            ax.annotate(f'{percent_change:.1f}%', (variable_values[i], second_values[i]),
+                        textcoords="offset points", xytext=(0, -15), ha='center', color='orange')
+
+        ax.set_xlabel(variable_parameter)
+        ax.set_ylabel(metric)
+        ax.legend()
+
+    # Hide any unused subplots
+    for ax in axes[num_metrics:]:
+        ax.set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(dir_name, 'comparison_plot.png'))
+    plt.show()
+
+
 def average_column_from_subdirectories(main_directory, model="UserKNN", similarity="rp_faiss"):
     # Model forse non ci serve
     data_frames = []
@@ -567,3 +566,13 @@ def average_column_from_subdirectories(main_directory, model="UserKNN", similari
     plt.show()
 
     return averaged_df
+
+
+def expand_results_dataframe(results_df: pd.DataFrame):
+    index = 5
+    # Parse nbits and ntables from model description
+    if "ItemKNN" in results_df["model"][0]:
+        index += 1
+    results_df['nbits'] = [int(el.split("_")[index].split("=")[1]) for el in results_df["model"]]
+    results_df['ntables'] = [int(el.split("_")[index + 1].split("=")[1]) for el in results_df["model"]]
+    return results_df

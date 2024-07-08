@@ -4,5 +4,6 @@ import requests
 import os
 from elliot.run import run_experiment
 
-print("Done! We are now starting the Elliot's experiment.")
-run_experiment("config_files/epinions_baselines.yml")
+if __name__ == "__main__":
+    print("Done! We are now starting the Elliot's experiment.")
+    run_experiment("config_files/amazon_2.yml")

@@ -1,6 +1,6 @@
 experiment:
   backend: pytorch
-  dataset: amazon_music
+  dataset: amazon_music_faisscopy
   data_config:
     strategy: dataset
     dataset_path: ../data/amazon_music/Digital_Music.tsv
@@ -32,9 +32,9 @@ experiment:
         #hyper_max_evals: 20
         hyper_opt_alg: grid #tpe
       neighbors: 300
-      nbits: [ 2,4,8]  #[ 4,8,12,16,32,64,128 ]
+      nbits: [ 2,4,8,16,32,64,128,256,512 ]  #[ 4,8,12,16,32,64,128 ]
       ntables: 1  #[ 1,2,4,8,12,16 ] #Set to 1 for a comparison with rp_faiss
-      similarity: rp_faiss #[cosine,rp_custom,rp_faiss,rp_hashtables]
+      similarity: rp_hashtables #[cosine,rp_custom,rp_faiss,rp_hashtables]
     UserKNN:
       meta:
         save_recs: True
@@ -42,6 +42,6 @@ experiment:
         #hyper_max_evals: 20
         hyper_opt_alg: grid #tpe
       neighbors: 600
-      nbits: [ 2,4,8]  #[ 4,8,12,16,32,64,128 ]
+      nbits: [ 2,4,8,16,32,64,128,256,512 ]  #[ 4,8,12,16,32,64,128 ]
       ntables: 1  #[ 1,2,4,8,12,16 ] #Set to 1 for a comparison with rp_faiss
-      similarity: rp_faiss #[cosine,rp_custom,rp_faiss,rp_hashtables]
+      similarity: rp_hashtables #[cosine,rp_custom,rp_faiss,rp_hashtables]

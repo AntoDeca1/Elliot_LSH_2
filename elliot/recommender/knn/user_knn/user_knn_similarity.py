@@ -8,17 +8,14 @@ from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances, hav
     manhattan_distances
 from sklearn.metrics import pairwise_distances
 import time
-from ..LSH_HashTables.LSH import LSHRp as LSHHashTables
 from ..LSH_v4.LSH_v4 import RandomProjections as CustomLSH
+from ..LSH_v5.LSH_v5 import RandomProjections as CustomLSHmp
 from ..LSH_faiss.LSH_faiss import RandomProjections as FaissLSH
-from ..LSH_v3.LSH_v3 import RandomProjections as LSH_noHamming
+from ..LSH_v3.LSH_v3 import RandomProjections as LSH_hashtables
+from ..LSH_Faiss_like.LSH_faiss_like import IndexLSH as FaissLikeIndex
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 from tqdm import tqdm
-import gc
-import torch
-import pyximport
-from opt_einsum import contract
 
 
 class Similarity(object):
@@ -31,7 +28,7 @@ class Similarity(object):
         self._ratings = data.train_dict
         self._num_neighbors = num_neighbors
         self._similarity = similarity
-        if self._similarity in ["rp_faiss", "rp_custom", "rp_hashtables"]:
+        if self._similarity in ["rp_faiss", "rp_custom", "rp_hashtables", "rp_custommp", "rp_faisslike"]:
             self._lsh_times_obj = {}
         else:
             self._lsh_times_obj = None
@@ -74,7 +71,7 @@ class Similarity(object):
         ##############
         data, rows_indices, cols_indptr = [], [], []
 
-        if self._similarity in ["rp_faiss", "rp_custom"]:
+        if self._similarity in ["rp_faiss", "rp_custom", "rp_custommp", "rp_faisslike"]:
             data, rows_indices, cols_indptr = self.lsh_similarity(self._URM)
         else:
             self.process_similarity(self._similarity)
@@ -117,19 +114,19 @@ class Similarity(object):
             self._similarity_matrix = self.baseline(self._URM)
         elif similarity == "rp_hashtables":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
-            lsh_index = LSH_noHamming(d=len(self._items), nbits=self._nbits, l=self._ntables)
+            lsh_index = LSH_hashtables(d=len(self._items), nbits=self._nbits, l=self._ntables)
             prima = time.time()
             lsh_index.add(self._URM)
             indexing_time = time.time() - prima
             print(indexing_time, "Time to index the vectors")
             self._lsh_times_obj["indexing_time"] = indexing_time
             prima = time.time()
-            candidates_matrix = lsh_index.search_2()
+            candidates_dict = lsh_index.search_2()
             candidates_retrieval_time = time.time() - prima
             print(candidates_retrieval_time, "Time to pull out the candidates")
             prima = time.time()
             self._similarity_matrix = self.compute_candidates_cosine_similarity(user_item_matrix=self._URM,
-                                                                                candidate_matrix=candidates_matrix)
+                                                                                candidates_dict=candidates_dict)
             similarity_matrix_time = time.time() - prima
             print(similarity_matrix_time, "Time for calculating the similarity matrix")
             self._lsh_times_obj["similarity_matrix_time"] = similarity_matrix_time
@@ -158,10 +155,15 @@ class Similarity(object):
         if self._similarity == "rp_faiss":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
             rp = FaissLSH(d=len(self._items), nbits=self._nbits)
-        else:
+        elif self._similarity == "rp_faisslike":
+            print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
+            rp = FaissLikeIndex(d=len(self._items), nbits=self._nbits)
+        elif self._similarity == "rp_custom":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
             rp = CustomLSH(d=len(self._items), nbits=self._nbits, l=self._ntables)
-
+        elif self._similarity == "rp_custommp":
+            print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
+            rp = CustomLSHmp(d=len(self._items), nbits=self._nbits, l=self._ntables)
         prima = time.time()
         rp.add(user_item_matrix)
         indexing_time = time.time() - prima
@@ -172,13 +174,15 @@ class Similarity(object):
         prima = time.time()
         if isinstance(rp, FaissLSH):
             candidates_matrix = rp.search_2(user_item_matrix, k=self._num_neighbors)
+        elif isinstance(rp, FaissLikeIndex):
+            _, candidates_matrix = rp.search_2(user_item_matrix, k=self._num_neighbors)
         else:
             candidates_matrix = rp.search_2(k=self._num_neighbors)
         candidates_retrieval_time = time.time() - prima
         print(candidates_retrieval_time, "Time to pull out the candidates")
         self._lsh_times_obj["candidates_retrieval_time"] = candidates_retrieval_time
-
-
+        # del rp
+        # gc.collect()
         prima = time.time()
         data, rows_indices, cols_indptr = self.compute_candidates_cosine_similarity_fast(user_item_matrix,
                                                                                          candidates_matrix)
@@ -280,14 +284,10 @@ class Similarity(object):
                 similarity_matrix[idx * chunk_size:(idx + 1) * chunk_size] = similarity_chunk
             self._similarity_matrix = similarity_matrix
 
-    def compute_candidates_cosine_similarity(self, user_item_matrix, candidate_matrix):
-        n_items = candidate_matrix.shape[0]
-        similarity_matrix = np.empty((len(self._users), len(self._users)))
+    def compute_candidates_cosine_similarity(self, user_item_matrix, candidates_dict):
+        similarity_matrix = np.zeros((len(self._users), len(self._users)))
         # MULTIPROCESSING HERE
-        for i in range(n_items):
-            # Get the indices of the candidates for the i-th item
-            candidate_indices = candidate_matrix.getrow(i).nonzero()[1]
-
+        for i, candidate_indices in enumerate(candidates_dict.values()):
             # Extract the relevant vectors from URM for these candidates
             URM_candidates = user_item_matrix[candidate_indices, :]
 
