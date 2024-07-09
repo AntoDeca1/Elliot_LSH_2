@@ -16,6 +16,8 @@ from ..LSH_Faiss_like.LSH_faiss_like import IndexLSH as FaissLikeIndex
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 from tqdm import tqdm
+import torch
+import time
 
 
 class Similarity(object):
@@ -99,7 +101,9 @@ class Similarity(object):
 
     def process_similarity(self, similarity):
         if similarity == "cosine":
+            before = time.time()
             self._similarity_matrix = cosine_similarity(self._URM)
+            print(f"Time for computing the similarity all by all with sklearn {time.time() - before}")
         elif similarity == "dot":
             self._similarity_matrix = (self._URM @ self._URM.T).toarray()
         elif similarity == "euclidean":
@@ -192,24 +196,45 @@ class Similarity(object):
         self._lsh_times_obj["similarity_matrix_time"] = similarity_matrix_time
         return data, rows_indices, cols_indptr
 
-    def compute_candidates_cosine_similarity_np(self, user_item_matrix: np.array,
-                                                candidate_matrix: np.array):
+    def compute_candidates_cosine_similarity_torch(self, user_item_matrix: np.array,
+                                                   candidate_matrix: np.array, batch_size=150):
         """
-         In the case of Faiss or CustomLSH(my implementation of Faiss) we already retrieve the k candidates
-         It makes no sense to sort them relatevely to the cosine similarity and so we skip this step and we output directly the components of the final sparse matrix
-         :param user_item_matrix:
-         :param item_user_matrix:
-         :param candidate_matrix:
-         :return:
+        Computes cosine similarity between users and their candidate vectors using PyTorch for GPU acceleration.
+
+        :param user_item_matrix: User vectors matrix (2D array)
+        :param candidate_matrix: Candidate indices matrix (2D array)
+        :param batch_size: Size of the batch for processing
+        :return: Cosine similarity matrix
         """
-        dense_user_item_matrix = user_item_matrix.A
-        candidates_users = dense_user_item_matrix[candidate_matrix]
+        if torch.backends.mps.is_available():
+            device = torch.device('mps')
+            print(f"Device Found and set to {device}")
+        else:
+            device = torch.device('cpu')
+
+        user_item_matrix = torch.from_numpy(user_item_matrix.A).to(device)
+        candidate_matrix = torch.from_numpy(candidate_matrix).to(device)
+
+        similarities = torch.zeros(user_item_matrix.shape[0], candidate_matrix.shape[1], device=device)
+
         prima = time.time()
-        similarities = np.einsum("ijk,ik->ij", candidates_users, dense_user_item_matrix, optimize=True) / (np.sqrt(
-            np.sum(candidates_users ** 2, axis=2)) * np.sqrt(
-            np.sum(dense_user_item_matrix ** 2, axis=1)[:, np.newaxis]))
-        print(time.time() - prima, "Tempo necessario")
-        return similarities
+
+        for index in range(0, user_item_matrix.shape[0], batch_size):
+            batch_indices = range(index, min(index + batch_size, user_item_matrix.shape[0]))
+            candidates_users = user_item_matrix[candidate_matrix[batch_indices]]
+            users_batch = user_item_matrix[batch_indices]
+
+            dot_prod_batch = torch.einsum('ijk,ik->ij', candidates_users, users_batch)
+
+            user_norms = torch.norm(users_batch, dim=1, keepdim=True)
+            candidate_norms = torch.norm(candidates_users, dim=2)
+
+            # Compute cosine similarity
+            similarities[batch_indices] = dot_prod_batch / (user_norms * candidate_norms + 1e-6)
+
+        print(time.time() - prima, "TEMPO DI ESECUZIONE")
+
+        return similarities.cpu().numpy()
 
     def baseline(self, user_item_matrix):
         """

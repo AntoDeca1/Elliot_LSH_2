@@ -76,24 +76,12 @@ class RandomProjections():
             candidates.update(table[stringify_array(vec[index])])
         return candidates
 
-    # def search_2(self):
-    #     """
-    #     For each element pick it's candidates
-    #     :return: A sparse matrix of dimensionality (n_items,n_items) or (n_users,n_users) having 1 only in the candidates position
-    #     """
-    #     n = len(self.buckets_matrix)
-    #     output_matrix = np.zeros((n, n))
-    #     for index, el in enumerate(self.buckets_matrix):
-    #         candidates = list(self._get_vec_candidates(el))
-    #         output_matrix[index, candidates] = 1
-    #     return sp.csr_matrix(output_matrix)
 
     def search_2(self):
         """
         For each element pick it's candidates
         :return: A sparse matrix of dimensionality (n_items,n_items) or (n_users,n_users) having 1 only in the candidates position
         """
-        print("implementazione nuova")
         output_dict = defaultdict(list)
         for index, el in enumerate(self.buckets_matrix):
             candidates = list(self._get_vec_candidates(el))
