@@ -1,0 +1,44 @@
+experiment:
+  backend: pytorch
+  dataset: movielens_1m
+  data_config:
+    strategy: fixed
+    train_path: ../data/movielens_1m/filtered_data/0/train.tsv
+    test_path: ../data/movielens_1m/filtered_data/0/test.tsv
+  top_k: 50
+  evaluation:
+    cutoffs: 20 # [10, 20, 50]
+    simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR ]
+    complex_metrics:
+      - metric: BiasDisparityBD
+        user_clustering_name: UserPopularity
+        user_clustering_file: ../data/movielens_1m/user_groups_4.tsv #user_no_groups.tsv #
+        item_clustering_name: ItemPopularity
+        item_clustering_file: ../data/movielens_1m/item_no_groups.tsv #item_groups_4.tsv
+      - metric: BiasDisparityBR
+        user_clustering_name: UserPopularity
+        user_clustering_file: ../data/movielens_1m/user_groups_4.tsv #user_no_groups.tsv
+        item_clustering_name: ItemPopularity
+        item_clustering_file: ../data/movielens_1m/item_no_groups.tsv #item_groups_4.tsv
+      - metric: BiasDisparityBS
+        user_clustering_name: UserPopularity
+        user_clustering_file: ../data/movielens_1m/user_groups_4.tsv #user_no_groups.tsv
+        item_clustering_name: ItemPopularity
+        item_clustering_file: ../data/movielens_1m/item_no_groups.tsv #item_groups_4.tsv
+  gpu: 0
+  external_models_path: ../external/models/__init__.py
+  models:
+    ItemKNN:
+      meta:
+        save_recs: False
+        verbose: True
+        hyper_opt_alg: grid
+      neighbors: 200
+      similarity: cosine
+    UserKNN:
+      meta:
+        save_recs: False
+        verbose: True
+        hyper_opt_alg: grid
+      neighbors: 200
+      similarity: cosine

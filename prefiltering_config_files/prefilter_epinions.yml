@@ -1,0 +1,28 @@
+experiment:
+  backend: pytorch
+  dataset: epinions
+  data_config:
+    strategy: dataset
+    dataset_path: ../data/epinions/dataset.tsv
+  prefiltering:
+    - strategy: global_threshold
+      threshold: 4
+    - strategy: iterative_k_core
+      core: 2
+  binarize: True
+  splitting:
+    save_on_disk: True
+    save_folder: ../data/epinions/filtered_data/
+    test_splitting:
+      test_ratio: 0.2
+      strategy: random_subsampling
+  top_k: 50
+  evaluation:
+    cutoffs: 20 # [10, 20, 50]
+    simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR ]
+  gpu: 0
+  external_models_path: ../external/models/__init__.py
+  models:
+    Random:
+      meta:
+        save_recs: False

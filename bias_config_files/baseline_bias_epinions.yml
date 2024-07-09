@@ -1,0 +1,51 @@
+experiment:
+  backend: pytorch
+  dataset: epinions
+  data_config:
+    strategy: fixed
+    train_path: ../data/epinions/filtered_data/0/train.tsv
+    test_path: ../data/epinions/filtered_data/0/test.tsv
+  top_k: 50
+  evaluation:
+    cutoffs: 20
+    simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR ]
+    complex_metrics:
+      - metric: BiasDisparityBD
+        user_clustering_name: UserPopularity
+        user_clustering_file: ../data/epinions/user_groups_4.tsv #user_no_groups.tsv
+        item_clustering_name: ItemPopularity
+        item_clustering_file: ../data/epinions/item_no_groups.tsv #item_groups_4.tsv
+      - metric: BiasDisparityBR
+        user_clustering_name: UserPopularity
+        user_clustering_file: ../data/epinions/user_groups_4.tsv #user_no_groups.tsv
+        item_clustering_name: ItemPopularity
+        item_clustering_file: ../data/epinions/item_no_groups.tsv #item_groups_4.tsv
+      - metric: BiasDisparityBS
+        user_clustering_name: UserPopularity
+        user_clustering_file: ../data/epinions/user_groups_4.tsv #user_no_groups.tsv
+        item_clustering_name: ItemPopularity
+        item_clustering_file: ../data/epinions/item_no_groups.tsv #item_groups_4.tsv
+  gpu: 0
+  external_models_path: ../external/models/__init__.py
+  models:
+    Random:
+      meta:
+        save_recs: False
+    external.MostPop:
+      meta:
+        verbose: True
+        save_recs: False
+    ItemKNN:
+      meta:
+        save_recs: False
+        verbose: True
+        validation_metric: nDCGRendle2020@20
+      neighbors: 600
+      similarity: cosine
+    UserKNN:
+      meta:
+        save_recs: False
+        verbose: True
+        validation_metric: nDCGRendle2020@20
+      neighbors: 300
+      similarity: cosine
