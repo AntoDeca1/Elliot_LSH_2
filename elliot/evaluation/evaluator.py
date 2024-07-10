@@ -44,7 +44,7 @@ class Evaluator(object):
         :param k: top-k evaluation
         """
         self.logger = logging.get_logger(self.__class__.__name__, pylog.CRITICAL if data.config.config_test else
-                                         pylog.DEBUG)
+        pylog.DEBUG)
         self._data = data
         self._params = params
         self._k = getattr(data.config.evaluation, "cutoffs", [data.config.top_k])
@@ -55,7 +55,7 @@ class Evaluator(object):
         self._paired_ttest = self._data.config.evaluation.paired_ttest
         self._metrics = metrics.parse_metrics(data.config.evaluation.simple_metrics)
         self._complex_metrics = getattr(data.config.evaluation, "complex_metrics", dict())
-        #TODO integrate complex metrics in validation metric (the problem is that usually complex metrics generate a complex name that does not match with the base name when looking for the loss value)
+        # TODO integrate complex metrics in validation metric (the problem is that usually complex metrics generate a complex name that does not match with the base name when looking for the loss value)
         # if _validation_metric.lower() not in [m.lower()
         #                                       for m in data.config.evaluation.simple_metrics]+[m["metric"].lower()
         #                                                                                        for m in self._complex_metrics]:
@@ -67,15 +67,16 @@ class Evaluator(object):
         self._evaluation_objects = SimpleNamespace(relevance=relevance.Relevance(self._test, self._rel_threshold),
                                                    pop=self._pop,
                                                    num_items=self._data.num_items,
-                                                   data = self._data,
+                                                   data=self._data,
                                                    additional_metrics=self._complex_metrics)
         if data.get_validation():
             self._val = data.get_validation()
-            self._val_evaluation_objects = SimpleNamespace(relevance=relevance.Relevance(self._val, self._rel_threshold),
-                                                           pop=self._pop,
-                                                           num_items=self._data.num_items,
-                                                           data = self._data,
-                                                           additional_metrics=self._complex_metrics)
+            self._val_evaluation_objects = SimpleNamespace(
+                relevance=relevance.Relevance(self._val, self._rel_threshold),
+                pop=self._pop,
+                num_items=self._data.num_items,
+                data=self._data,
+                additional_metrics=self._complex_metrics)
         self._needed_recommendations = self._compute_needed_recommendations()
 
     def eval(self, recommendations):
@@ -85,11 +86,12 @@ class Evaluator(object):
         """
         result_dict = {}
         for k in self._k:
-            val_results, val_statistical_results, test_results, test_statistical_results = self.eval_at_k(recommendations, k)
-            local_result_dict ={"val_results": val_results,
-                                "val_statistical_results": val_statistical_results,
-                                "test_results": test_results,
-                                "test_statistical_results": test_statistical_results}
+            val_results, val_statistical_results, test_results, test_statistical_results = self.eval_at_k(
+                recommendations, k)
+            local_result_dict = {"val_results": val_results,
+                                 "val_statistical_results": val_statistical_results,
+                                 "test_results": test_results,
+                                 "test_statistical_results": test_statistical_results}
             result_dict[k] = local_result_dict
         return result_dict
 
@@ -112,7 +114,8 @@ class Evaluator(object):
         for p, (test_data, eval_objs) in enumerate(self._get_test_data()):
             if eval_objs is not None:
                 eval_objs.cutoff = k
-            results, statistical_results = self._process_test_data(recommendations[p], test_data, eval_objs, val_test[p])
+            results, statistical_results = self._process_test_data(recommendations[p], test_data, eval_objs,
+                                                                   val_test[p])
             result_list.append((results, statistical_results))
 
         if (not result_list[0][0]):
@@ -139,6 +142,7 @@ class Evaluator(object):
 
             metric_objects = [m(recommendations, self._data.config, self._params, eval_objs) for m in self._metrics]
             for metric in self._complex_metrics:
+                # Here we initialize the complex metrics
                 metric_objects.extend(metrics.parse_metric(metric["metric"])(recommendations, self._data.config,
                                                                              self._params, eval_objs, metric).get())
             results = {m.name(): m.eval() for m in metric_objects}
@@ -163,7 +167,8 @@ class Evaluator(object):
 
     def _compute_needed_recommendations(self):
         full_recommendations_metrics = any([m.needs_full_recommendations() for m in self._metrics])
-        full_recommendations_additional_metrics = any([metrics.parse_metric(metric["metric"]).needs_full_recommendations() for metric in self._complex_metrics])
+        full_recommendations_additional_metrics = any(
+            [metrics.parse_metric(metric["metric"]).needs_full_recommendations() for metric in self._complex_metrics])
         if full_recommendations_metrics:
             self.logger.warn("At least one basic metric requires full length recommendations")
         if full_recommendations_additional_metrics:

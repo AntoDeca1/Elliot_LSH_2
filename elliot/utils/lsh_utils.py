@@ -374,10 +374,76 @@ def print_pareto_details(pareto_efficient_points, baseline_data, plot_dir):
     pareto_efficient_points.to_csv(os.path.join(plot_dir, file_name))
 
 
+def plot_fairness(baseline_data, experiments_data, fairness_cols, color_map, plot_dir, unique_combinations):
+    baseline_biases = baseline_data[["model"] + fairness_cols]
+    experiments_biases = experiments_data[["model", "nbits", "ntables"] + fairness_cols]
+    user_groups = set()
+    item_groups = set()
+    for col in fairness_cols:
+        user_group, item_group = col.split(":")[-2:]
+        user_group_id = int(user_group.split("-")[1][0])
+        item_group_id = int(item_group[-1])
+        baseline_biases = baseline_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
+        experiments_biases = experiments_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
+        user_groups.add(user_group_id)
+        item_groups.add(item_group_id)
+    user_groups = sorted(user_groups)
+    item_groups = sorted(item_groups)
+    combined_data = pd.concat([baseline_biases, experiments_biases])
+    default_color = 'grey'
+
+    for user_group in user_groups:
+        fig, ax = plt.subplots(figsize=(20, 10))
+
+        bar_width = 0.8 / len(combined_data)
+        x = np.arange(len(item_groups))
+        num_bars = len(combined_data)
+
+        for i, (_, row) in enumerate(combined_data.iterrows()):
+            biases = [row[f"{user_group}:{item_group}"] if f"{user_group}:{item_group}" in row else 0 for item_group in item_groups]
+            if np.isnan(row["nbits"]) or np.isnan(row["ntables"]):
+                color = default_color
+                label = 'baseline'
+            else:
+                color_index = unique_combinations[(unique_combinations["nbits"] == row["nbits"]) & (unique_combinations["ntables"] == row["ntables"])].index[0]
+                color = color_map.get(color_index, default_color)
+                label = f'nbits={row["nbits"]}, ntables={row["ntables"]}'
+            bar_positions = x + (i - num_bars / 2) * bar_width
+            ax.bar(bar_positions, biases, bar_width, label=label, color=color)
+            for j, bias in enumerate(biases):
+                ax.text(bar_positions[j], bias, f"{round(bias, 2)}", ha='center', va='bottom')
+
+        ax.set_xlabel('Item Groups')
+        ax.set_ylabel('Bias Disparity')
+        ax.set_title(f'Fairness Metric: BiasDisparity for User Group {user_group}')
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"Item {item_group}" for item_group in item_groups])
+        handles, labels = ax.get_legend_handles_labels()
+        unique_labels = dict(zip(labels, handles))
+        ax.legend(unique_labels.values(), unique_labels.keys(), title="Configurations", loc='upper left', bbox_to_anchor=(1, 1))
+
+        plot_name = f"fairness_user_group_{user_group}.png"
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, plot_name))
+        plt.show()
+
+
 def find_best_experiment_static(baseline_path, experiments_path):
+    """
+    Function that given the path where the baseline results are saved and the path where the lsh experiments are saved
+    1) Compare each single experiment with the baseline
+    2) Create a scatter plot showing the similarity decrease and ndcg loss with respect to the baseline
+    3) Filter the previour scatter plot with the
+    :param baseline_path:
+    :param experiments_path:
+    :return:
+    """
     # Load the data
     baseline_data = pd.read_csv(baseline_path, sep='\t')
     experiments_data = pd.read_csv(experiments_path, sep='\t')
+
+    # Add here all the possible fairness metrics
 
     base_path = "/".join(baseline_path.split("/")[:-1], )
 
@@ -432,6 +498,18 @@ def find_best_experiment_static(baseline_path, experiments_path):
     # Print comprehensive comparison and best experiment details
     print_pareto_details(pareto_efficient_points, baseline_data, plot_dir)
 
+    # New part
+    fairness_metrics = ["BiasDisparity"]
+    for f_metric in fairness_metrics:
+        baseline_fmetric_cols = [col for col in baseline_data.columns if f_metric in col]
+        experiment_fmetric_cols = [col for col in experiments_data.columns if f_metric in col]
+        n_baseline_fmetric_cols = len(baseline_fmetric_cols)
+        n_experiment_fmetric_cols = len(experiment_fmetric_cols)
+        if n_baseline_fmetric_cols != 0 and n_experiment_fmetric_cols != 0 and (
+                n_baseline_fmetric_cols == n_experiment_fmetric_cols):
+            plot_fairness(baseline_data, experiments_data, baseline_fmetric_cols, color_map, plot_dir,
+                          unique_combinations)
+
     return pareto_efficient_points
 
 
@@ -440,8 +518,8 @@ def compare_experiments(first_experiments_path, second_experiments_path, variabl
     first_experiments_data = pd.read_csv(first_experiments_path, sep='\t')
     second_experiments_data = pd.read_csv(second_experiments_path, sep='\t')
 
-    first_experiment_model_name=first_experiments_data["model"][0].split("=")[2]
-    second_experiment_model_name=second_experiments_data["model"][0].split("=")[2]
+    first_experiment_model_name = first_experiments_data["model"][0].split("=")[2]
+    second_experiment_model_name = second_experiments_data["model"][0].split("=")[2]
 
     metrics = first_experiments_data.columns[1:].tolist()
     if len(first_experiments_data) != len(second_experiments_data):

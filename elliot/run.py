@@ -143,6 +143,7 @@ def run_experiment(config_path: str = ''):
     hyper_handler.save_trials(output=base.base_namespace.path_output_rec_performance)
     # new line added for lsh comparisons !!
     if base.config['experiment'].get("comparison_lsh", None) is not None:
+        logger.info("Comparison_lsh was set to true,saving results for LSH comparisons")
         hyper_handler.save_comparisons(base, output=os.path.dirname(os.path.abspath("results_lsh")))
     # hyper_handler.save_trials_std(output=base.base_namespace.path_output_rec_performance)
     # hyper_handler.save_trials_times(output=base.base_namespace.path_output_rec_performance)

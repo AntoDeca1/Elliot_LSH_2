@@ -117,6 +117,7 @@ class ModelCoordinator(object):
         self.logger.info("Hyperparameters:")
         for k, v in self.params.__dict__.items():
             self.logger.info(f"{k} set to {v}")
+        # TODO: Aggiungere anche qui la logica di objective
 
         losses = []
         results = []
