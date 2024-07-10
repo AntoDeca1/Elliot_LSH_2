@@ -375,23 +375,56 @@ def print_pareto_details(pareto_efficient_points, baseline_data, plot_dir):
 
 
 def plot_fairness(baseline_data, experiments_data, fairness_cols, color_map, plot_dir, unique_combinations):
+    """
+    Useful function for plotting comparisons between baseline and bias metrics. It creates a plot for each user group and shows the bias compared to the baseline.
+    In case the metric of interest is "BiasDisparityBR", if the "BiasDisparityBS" is in our results it's added to the comparison
+    :param baseline_data:
+    :param experiments_data:
+    :param fairness_cols:
+    :param color_map:
+    :param plot_dir:
+    :param unique_combinations:
+    :return:
+    """
     baseline_biases = baseline_data[["model"] + fairness_cols]
     experiments_biases = experiments_data[["model", "nbits", "ntables"] + fairness_cols]
+
+    # Check for BiasDisparityBS columns
+    bias_disparity_bs_cols = [col for col in baseline_data.columns if "BiasDisparityBS" in col]
+
+    metric_name = fairness_cols[0].split("_")[0]
     user_groups = set()
     item_groups = set()
+
+    # Rename the original column names in a more readable format
     for col in fairness_cols:
         user_group, item_group = col.split(":")[-2:]
         user_group_id = int(user_group.split("-")[1][0])
         item_group_id = int(item_group[-1])
-        baseline_biases = baseline_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
-        experiments_biases = experiments_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
+        if col in baseline_biases.columns:
+            baseline_biases = baseline_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
+        if col in experiments_biases.columns:
+            experiments_biases = experiments_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
         user_groups.add(user_group_id)
         item_groups.add(item_group_id)
+
+    bias_source_df = pd.DataFrame()
+    if metric_name == "BiasDisparityBR":
+        if len(bias_disparity_bs_cols) > 0:
+            bias_source_model = {"model": "BiasSource"}
+            for col in bias_disparity_bs_cols:
+                user_group, item_group = col.split(":")[-2:]
+                user_group_id = int(user_group.split("-")[1][0])
+                item_group_id = int(item_group[-1])
+                bias_source_model[f"{user_group_id}:{item_group_id}"] = baseline_data[col].iloc[0]
+            bias_source_df = pd.DataFrame([bias_source_model])
+
     user_groups = sorted(user_groups)
     item_groups = sorted(item_groups)
-    combined_data = pd.concat([baseline_biases, experiments_biases])
+    combined_data = pd.concat([bias_source_df, baseline_biases, experiments_biases])
     default_color = 'grey'
 
+    # Create a plot for each user group
     for user_group in user_groups:
         fig, ax = plt.subplots(figsize=(20, 10))
 
@@ -400,12 +433,18 @@ def plot_fairness(baseline_data, experiments_data, fairness_cols, color_map, plo
         num_bars = len(combined_data)
 
         for i, (_, row) in enumerate(combined_data.iterrows()):
-            biases = [row[f"{user_group}:{item_group}"] if f"{user_group}:{item_group}" in row else 0 for item_group in item_groups]
+            biases = [row[f"{user_group}:{item_group}"] if f"{user_group}:{item_group}" in row else 0 for item_group in
+                      item_groups]
             if np.isnan(row["nbits"]) or np.isnan(row["ntables"]):
-                color = default_color
-                label = 'baseline'
+                if row["model"] == "BiasSource":
+                    color = "red"
+                    label = 'bias_source'
+                else:
+                    color = default_color
+                    label = 'baseline'
             else:
-                color_index = unique_combinations[(unique_combinations["nbits"] == row["nbits"]) & (unique_combinations["ntables"] == row["ntables"])].index[0]
+                color_index = unique_combinations[(unique_combinations["nbits"] == row["nbits"]) & (
+                        unique_combinations["ntables"] == row["ntables"])].index[0]
                 color = color_map.get(color_index, default_color)
                 label = f'nbits={row["nbits"]}, ntables={row["ntables"]}'
             bar_positions = x + (i - num_bars / 2) * bar_width
@@ -414,15 +453,16 @@ def plot_fairness(baseline_data, experiments_data, fairness_cols, color_map, plo
                 ax.text(bar_positions[j], bias, f"{round(bias, 2)}", ha='center', va='bottom')
 
         ax.set_xlabel('Item Groups')
-        ax.set_ylabel('Bias Disparity')
-        ax.set_title(f'Fairness Metric: BiasDisparity for User Group {user_group}')
+        ax.set_ylabel(f'{metric_name}')
+        ax.set_title(f'Fairness Metric: {metric_name} for User Group {user_group}')
         ax.set_xticks(x)
         ax.set_xticklabels([f"Item {item_group}" for item_group in item_groups])
         handles, labels = ax.get_legend_handles_labels()
         unique_labels = dict(zip(labels, handles))
-        ax.legend(unique_labels.values(), unique_labels.keys(), title="Configurations", loc='upper left', bbox_to_anchor=(1, 1))
+        ax.legend(unique_labels.values(), unique_labels.keys(), title="Configurations", loc='upper left',
+                  bbox_to_anchor=(1, 1))
 
-        plot_name = f"fairness_user_group_{user_group}.png"
+        plot_name = f"{metric_name}_group_{user_group}.png"
         plt.grid(True)
         plt.tight_layout()
         plt.savefig(os.path.join(plot_dir, plot_name))
@@ -434,7 +474,11 @@ def find_best_experiment_static(baseline_path, experiments_path):
     Function that given the path where the baseline results are saved and the path where the lsh experiments are saved
     1) Compare each single experiment with the baseline
     2) Create a scatter plot showing the similarity decrease and ndcg loss with respect to the baseline
-    3) Filter the previour scatter plot with the
+    3) Filter the previour scatter plot showing only the pareto efficient points(for better visualization)
+    4) TODO: Highlight the best experiments(the one that has the greatest gap between Similarity decrease and NDCG Loss)
+    !NEW
+    5) Integrate the possibility of comparing Fairness matrics
+    6) TODO: Integrate the possibility of comparing novelty metrics
     :param baseline_path:
     :param experiments_path:
     :return:
@@ -498,8 +542,10 @@ def find_best_experiment_static(baseline_path, experiments_path):
     # Print comprehensive comparison and best experiment details
     print_pareto_details(pareto_efficient_points, baseline_data, plot_dir)
 
-    # New part
-    fairness_metrics = ["BiasDisparity"]
+    # Fairness metrics analysis
+    # BiasDisparityBS is independent from the model and so is added as extra BAR in the plot if present
+    # "BiasDisparityBD"
+    fairness_metrics = ["BiasDisparityBR"]
     for f_metric in fairness_metrics:
         baseline_fmetric_cols = [col for col in baseline_data.columns if f_metric in col]
         experiment_fmetric_cols = [col for col in experiments_data.columns if f_metric in col]
