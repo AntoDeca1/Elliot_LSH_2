@@ -6,4 +6,4 @@ from elliot.run import run_experiment
 
 if __name__ == "__main__":
     print("Done! We are now starting the Elliot's experiment.")
-    run_experiment("bias_config_files/amazon_large.yml")
+    run_experiment("config_files/amazon_2.yml")

@@ -8,7 +8,7 @@ experiment:
   top_k: 50
   evaluation:
     cutoffs: 20
-    simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR ]
+    simple_metrics: [ nDCGRendle2020, Recall, HR, Precision, MAP, MRR,ItemCoverage, Gini, SEntropy, EFD, EPC ]
     complex_metrics:
       - metric: BiasDisparityBD
         user_clustering_name: UserPopularity
