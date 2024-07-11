@@ -407,16 +407,11 @@ def plot_Bias_Disparity(baseline_data, baseline_biases, experiments_biases, fair
     item_groups = set()
 
     # Rename the original column names in a more readable format
-    for col in fairness_cols:
-        user_group, item_group = col.split(":")[-2:]
-        user_group_id = int(user_group.split("-")[1][0])
-        item_group_id = int(item_group[-1])
-        if col in baseline_biases.columns:
-            baseline_biases = baseline_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
-        if col in experiments_biases.columns:
-            experiments_biases = experiments_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
-        user_groups.add(user_group_id)
-        item_groups.add(item_group_id)
+    user_groups, item_groups, baseline_biases, experiments_biases = rename_dataframe_fairness_cols(baseline_biases,
+                                                                                                   experiments_biases,
+                                                                                                   fairness_cols,
+                                                                                                   item_groups,
+                                                                                                   user_groups)
 
     bias_source_df = pd.DataFrame()
     if metric_name == "BiasDisparityBR":
@@ -438,87 +433,53 @@ def plot_Bias_Disparity(baseline_data, baseline_biases, experiments_biases, fair
 
     # Create a plot for each user group
     for user_group in user_groups:
-        fig, ax = plt.subplots(figsize=(20, 10))
-
-        bar_width = 0.8 / len(combined_data)
-        x = np.arange(len(item_groups))
-        num_bars = len(combined_data)
-
-        for i, (_, row) in enumerate(combined_data.iterrows()):
-            biases = [row[f"{user_group}:{item_group}"] if f"{user_group}:{item_group}" in row else 0 for item_group in
-                      item_groups]
-            if np.isnan(row["nbits"]) or np.isnan(row["ntables"]):
-                if row["model"] == "BiasSource":
-                    color = "red"
-                    label = 'bias_source'
-                else:
-                    color = default_color
-                    label = 'baseline'
-            else:
-                color_index = unique_combinations[(unique_combinations["nbits"] == row["nbits"]) & (
-                        unique_combinations["ntables"] == row["ntables"])].index[0]
-                color = color_map.get(color_index, default_color)
-                label = f'nbits={row["nbits"]}, ntables={row["ntables"]}'
-            bar_positions = x + (i - num_bars / 2) * bar_width
-            ax.bar(bar_positions, biases, bar_width, label=label, color=color)
-            for j, bias in enumerate(biases):
-                ax.text(bar_positions[j], bias, f"{round(bias, 2)}", ha='center', va='bottom')
-
-        ax.set_xlabel('Item Groups')
-        ax.set_ylabel(f'{metric_name}')
-        ax.set_title(f'Fairness Metric: {metric_name} for User Group {user_group}')
-        ax.set_xticks(x)
-        ax.set_xticklabels([f"Item {item_group}" for item_group in item_groups])
-        handles, labels = ax.get_legend_handles_labels()
-        unique_labels = dict(zip(labels, handles))
-        ax.legend(unique_labels.values(), unique_labels.keys(), title="Configurations", loc='upper left',
-                  bbox_to_anchor=(1, 1))
-
-        plot_name = f"{metric_name}_group_{user_group}.png"
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(os.path.join(fairness_dir, plot_name))
-        plt.show()
+        plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, item_groups,
+                          user_group)
 
 
-def plot_RankingOppurtinity(baseline_biases, experiments_biases, fairness_cols, metric_name,
-                            unique_combinations, color_map, fairness_dir):
-    item_groups = set()
-
-    # Rename the original column names in a more readable format
-    for col in fairness_cols:
-        if "ProbToBeRanked" in col:
-            _, item_group = col.split(":")[-2:]
-            item_group_id = int(item_group[-1])
-            if col in baseline_biases.columns:
-                baseline_biases = baseline_biases.rename(columns={col: f"{item_group_id}"})
-            if col in experiments_biases.columns:
-                experiments_biases = experiments_biases.rename(columns={col: f"{item_group_id}"})
-            item_groups.add(item_group_id)
-        else:
-            if col in baseline_biases.columns:
-                baseline_biases = baseline_biases.rename(columns={col: f"ItemPopularity"})
-            if col in experiments_biases.columns:
-                experiments_biases = experiments_biases.rename(columns={col: f"ItemPopularity"})
-
-    item_groups = sorted(item_groups)
-    combined_data = pd.concat([baseline_biases, experiments_biases])
-    default_color = 'grey'
-
-    # Create a plot for each user group
-
+def plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, item_groups=None,
+                      user_group=None,
+                      default_color="grey"):
+    """
+    Function for plotting grouped bars plots
+    Used for FairnessMetrics(BiasDisparityBR,BiasDisparityBD,REO,RSP)
+    Used for other additional metrics we consider in find_experiment_static() (e.g Gini,ItemCoverage,ShannonEntropy....)
+    :param combined_data: dataframe containing both baseline and experiments results concatenated
+    :param unique_combinations: unique combinations of lsh parameters(nbits and ntables)
+    :param color_map: lookup table containing the color for each combination
+    :param fairness_dir: directory in witch we results will be saved
+    :param metric_name:
+    :param item_groups: set containg the item group ids
+    :param user_group: set containing the user group ids
+    :param default_color: color to assign to the baseline
+    :return:
+    """
     fig, ax = plt.subplots(figsize=(20, 10))
 
     bar_width = 0.8 / len(combined_data)
-    x = np.arange(len(item_groups))
+    if item_groups is not None:
+        x = np.arange(len(item_groups))
+    else:
+        x = np.arange(1)
     num_bars = len(combined_data)
 
+    if user_group is not None:
+        user_group = f"{user_group}:"
+    else:
+        user_group = ""
     for i, (_, row) in enumerate(combined_data.iterrows()):
-        biases = [row[f"{item_group}"] if f"{item_group}" in row else 0 for item_group in
-                  item_groups]
+        if item_groups is not None:
+            biases = [row[f"{user_group}{item_group}"] if f"{user_group}{item_group}" in row else 0 for item_group in
+                      item_groups]
+        else:
+            biases = [row[metric_name]]
         if np.isnan(row["nbits"]) or np.isnan(row["ntables"]):
-            color = default_color
-            label = 'baseline'
+            if row["model"] == "BiasSource":
+                color = "red"
+                label = 'bias_source'
+            else:
+                color = default_color
+                label = 'baseline'
         else:
             color_index = unique_combinations[(unique_combinations["nbits"] == row["nbits"]) & (
                     unique_combinations["ntables"] == row["ntables"])].index[0]
@@ -531,56 +492,94 @@ def plot_RankingOppurtinity(baseline_biases, experiments_biases, fairness_cols, 
 
     ax.set_xlabel('Item Groups')
     ax.set_ylabel(f'{metric_name}')
-    ax.set_title(f'Fairness Metric: {metric_name}')
+    if user_group != "":
+        ax.set_title(f'Metric: {metric_name} for User Group {user_group}')
+    else:
+        ax.set_title(f'Metric: {metric_name} ')
     ax.set_xticks(x)
-    ax.set_xticklabels([f"Item {item_group}" for item_group in item_groups])
+    if item_groups is not None:
+        ax.set_xticklabels([f"Item {item_group}" for item_group in item_groups])
     handles, labels = ax.get_legend_handles_labels()
     unique_labels = dict(zip(labels, handles))
     ax.legend(unique_labels.values(), unique_labels.keys(), title="Configurations", loc='upper left',
               bbox_to_anchor=(1, 1))
 
-    plot_name = f"{metric_name}_group.png"
+    plot_name = f"{metric_name}_group_{user_group}.png"
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(fairness_dir, plot_name))
     plt.show()
 
-    # Create plot for the overall metric
-    fig, ax = plt.subplots(figsize=(20, 10))
 
-    bar_width = 0.8 / len(combined_data)
-    x = np.arange(1)
-    num_bars = len(combined_data)
+def rename_dataframe_fairness_cols(baseline_biases, experiments_biases, fairness_cols, item_groups=None,
+                                   user_groups=None):
+    """
+    Utility function for renaming the original dataframe columns(taken from Elliot tsv results) in a more readable format
+    We also keep track of:
+    - Number of users groups
+    - Number of items groups
 
-    for i, (_, row) in enumerate(combined_data.iterrows()):
-        biases = [row[f"ItemPopularity"]]
-        if np.isnan(row["nbits"]) or np.isnan(row["ntables"]):
-            color = default_color
-            label = 'baseline'
-        else:
-            color_index = unique_combinations[(unique_combinations["nbits"] == row["nbits"]) & (
-                    unique_combinations["ntables"] == row["ntables"])].index[0]
-            color = color_map.get(color_index, default_color)
-            label = f'nbits={row["nbits"]}, ntables={row["ntables"]}'
-        bar_positions = x + (i - num_bars / 2) * bar_width
-        ax.bar(bar_positions, biases, bar_width, label=label, color=color)
-        for j, bias in enumerate(biases):
-            ax.text(bar_positions[j], bias, f"{round(bias, 2)}", ha='center', va='bottom')
+    For metrics like BiasDisparity we have both user and item groups
+    For metrics like REO,RSP we have just items_groups
+    :param baseline_biases: dataframe composed only by model_name + fairness_columns
+    :param experiments_biases: dataframe composed only by model_name + fairness_columns
+    :param fairness_cols: cols containing the value of the metrics we are considering
+    :param item_groups: set containing the ids of the items groups
+    :param user_groups: set containing the ids of the users groups
+    :return:
+    """
+    if (item_groups is not None) and (user_groups is not None):
+        for col in fairness_cols:
+            user_group, item_group = col.split(":")[-2:]
+            user_group_id = int(user_group.split("-")[1][0])
+            item_group_id = int(item_group[-1])
+            if col in baseline_biases.columns:
+                baseline_biases = baseline_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
+            if col in experiments_biases.columns:
+                experiments_biases = experiments_biases.rename(columns={col: f"{user_group_id}:{item_group_id}"})
+            user_groups.add(user_group_id)
+            item_groups.add(item_group_id)
+        return user_groups, item_groups, baseline_biases, experiments_biases
+    elif item_groups is not None:
+        for col in fairness_cols:
+            if "ProbToBeRanked" in col:
+                _, item_group = col.split(":")[-2:]
+                item_group_id = int(item_group[-1])
+                if col in baseline_biases.columns:
+                    baseline_biases = baseline_biases.rename(columns={col: f"{item_group_id}"})
+                if col in experiments_biases.columns:
+                    experiments_biases = experiments_biases.rename(columns={col: f"{item_group_id}"})
+                item_groups.add(item_group_id)
+            else:
+                new_name = col.split("_")[0]
+                if col in baseline_biases.columns:
+                    baseline_biases = baseline_biases.rename(columns={col: f"{new_name}"})
+                if col in experiments_biases.columns:
+                    experiments_biases = experiments_biases.rename(columns={col: f"{new_name}"})
+        return item_groups, baseline_biases, experiments_biases
+    else:
+        raise Exception("Missing user_groups or item groups set")
 
-    ax.set_xlabel('Models')
-    ax.set_ylabel(f'{metric_name}_Full')
-    ax.set_title(f'Fairness Metric_Full: {metric_name}')
-    ax.set_xticks(x)
-    handles, labels = ax.get_legend_handles_labels()
-    unique_labels = dict(zip(labels, handles))
-    ax.legend(unique_labels.values(), unique_labels.keys(), title="Configurations", loc='upper left',
-              bbox_to_anchor=(1, 1))
 
-    plot_name = f"{metric_name}_full.png"
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(os.path.join(fairness_dir, plot_name))
-    plt.show()
+def plot_RankingOppurtinity(baseline_biases, experiments_biases, fairness_cols, metric_name,
+                            unique_combinations, color_map, fairness_dir):
+    item_groups = set()
+
+    # Rename the original column names in a more readable format
+    item_groups, baseline_biases, experiments_biases = rename_dataframe_fairness_cols(baseline_biases,
+                                                                                      experiments_biases, fairness_cols,
+                                                                                      item_groups)
+    item_groups = sorted(item_groups)
+    combined_data = pd.concat([baseline_biases, experiments_biases])
+    default_color = 'grey'
+
+    # Plot showing the Ranking Bias for each item category
+    plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, item_groups)
+
+    # Plot showing the final Ranking Bias
+    single_metric_name = metric_name.split("-")[0]
+    plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name=single_metric_name,
+                      item_groups=None)
 
 
 def find_best_experiment_static(baseline_path, experiments_path):
@@ -592,7 +591,7 @@ def find_best_experiment_static(baseline_path, experiments_path):
     4) TODO: Highlight the best experiments(the one that has the greatest gap between Similarity decrease and NDCG Loss)
     !NEW
     5) Integrate the possibility of comparing Fairness matrics(BiasDisparityBR,BiasDisparityBS,BiasDisparityBD,REO,RSP)
-    6) TODO: Integrate the possibility of comparing novelty metrics
+    6) TODO: Integrate the possibility of comparing novelty diversity, metrics(DOING!)
     :param baseline_path:
     :param experiments_path:
     :return:
@@ -672,8 +671,23 @@ def find_best_experiment_static(baseline_path, experiments_path):
                 n_baseline_fmetric_cols == n_experiment_fmetric_cols):
             plot_fairness(baseline_data, experiments_data, baseline_fmetric_cols, color_map, plot_dir,
                           unique_combinations)
+    single_metrics = ["Gini", "SEntropy"]
+    for f_metric in single_metrics:
+        if (f_metric in baseline_data.columns) and (f_metric in experiments_data.columns):
+            plot_single_metric(baseline_data, experiments_data, [f_metric], color_map, plot_dir,
+                               unique_combinations)
 
     return pareto_efficient_points
+
+
+def plot_single_metric(baseline_data, experiments_data, metric_col, color_map, plot_dir, unique_combinations):
+    baseline_biases = baseline_data[["model"] + metric_col]
+    experiments_biases = experiments_data[["model", "nbits", "ntables"] + metric_col]
+    metric_name = metric_col[0]
+    output_dir = os.path.join(plot_dir, metric_name)
+    os.makedirs(output_dir, exist_ok=True)
+    combined_data = pd.concat([baseline_biases, experiments_biases])
+    plot_grouped_bars(combined_data, unique_combinations, color_map, output_dir, metric_name)
 
 
 def compare_experiments(first_experiments_path, second_experiments_path, variable_parameter="nbits"):
