@@ -52,6 +52,7 @@ class UserKNN(RecMixin, BaseRecommenderModel):
             ("_implementation", "implementation", "imp", "standard", None, None),
             ("_nbits", "nbits", "bits", False, None, None),
             ("_ntables", "ntables", "tables", False, None, None),
+            ("_initialization", "initialization", "initialization", "uniform", None, None),
             ("_implicit", "implicit", "bin", False, None, None),
             ("_shrink", "shrink", "shrink", 0, None, None),
             ("_normalize", "normalize", "norm", True, None, None),
@@ -80,7 +81,8 @@ class UserKNN(RecMixin, BaseRecommenderModel):
                 print(
                     "Options normalize, asymmetric_alpha, tversky_alpha, tversky_beta, row_weights are ignored with standard implementation. Try with implementation: aiolli")
             self._model = Similarity(data=self._data, num_neighbors=self._num_neighbors, similarity=self._similarity,
-                                     implicit=self._implicit, nbits=self._nbits, ntables=self._ntables)
+                                     implicit=self._implicit, nbits=self._nbits, ntables=self._ntables,
+                                     initialization=self._initialization)
 
     def get_single_recommendation(self, mask, k, *args):
         return {u: self._model.get_user_recs(u, mask, k) for u in self._ratings.keys()}

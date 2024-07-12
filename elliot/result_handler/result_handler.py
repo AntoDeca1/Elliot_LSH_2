@@ -209,9 +209,15 @@ class HyperParameterStudy:
                     results.update({result['params']['name']: result[_eval_results][k]})
                 info = pd.DataFrame.from_dict(results, orient='index')
                 info.insert(0, 'model', info.index)
+                initialization = performance[0]["params"].get("initialization", None)
+                if initialization is None or initialization == "uniform":
+                    results_path = os.sep.join(
+                        [current_output_path, rec + "_" + performance[0]["params"]["similarity"] + ".tsv"])
+                else:
+                    results_path = os.sep.join([current_output_path, rec + "_" + performance[0]["params"][
+                        "similarity"] + f"_{initialization}" + ".tsv"])
                 info.to_csv(
-                    os.path.abspath(os.sep.join(
-                        [current_output_path, rec + "_" + performance[0]["params"]["similarity"] + ".tsv"])),
+                    os.path.abspath(results_path),
                     sep='\t', index=False, mode="w")
 
     def save_trials_times(self, output='../results/'):

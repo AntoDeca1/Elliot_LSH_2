@@ -6,8 +6,8 @@ import os
 import datetime
 
 model = "ItemKNN"
-baseline_path = f"results_lsh/comparisons/movielens_1m/ItemKNN/ItemKNN_baseline.tsv"
-lsh_path = f"results_lsh/comparisons/movielens_1m/ItemKNN/ItemKNN_rp_faiss.tsv"
+baseline_path = f"results_lsh/comparisons/amazon_music_large/ItemKNN/ItemKNN_baseline.tsv"
+lsh_path = f"results_lsh/comparisons/amazon_music_large/ItemKNN/ItemKNN_rp_hashtables.tsv"
 print("Last Modification Date of the Baseline: ", datetime.datetime.fromtimestamp(os.path.getmtime(baseline_path)))
 print("Last Modification Date of the LSH Approach: ", datetime.datetime.fromtimestamp(os.path.getmtime(lsh_path)))
 find_best_experiment_static(baseline_path, lsh_path)

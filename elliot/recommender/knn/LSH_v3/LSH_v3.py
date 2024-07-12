@@ -17,7 +17,7 @@ N.B:Può succedere che non ci siano candidati in questo caso
 
 
 class RandomProjections():
-    def __init__(self, d, nbits, l=1, seed=42):
+    def __init__(self, d, nbits, l=1, seed=42, initialization="uniform"):
         """
         :param d: Dimensionality of our original vectors (e.g number of users in the dataset)
         :param nbits: Number of hyperplanes
@@ -28,7 +28,7 @@ class RandomProjections():
         self.nbits = nbits
         self.d = d
         self.l = l
-        self.projection_matrix = self._initialize_projection_matrix()
+        self.projection_matrix = self._initialize_projection_matrix(initialization=initialization)
         self.seed = seed
         self.all_hashes = None
         if self.seed is not None:
@@ -76,17 +76,30 @@ class RandomProjections():
             candidates.update(table[stringify_array(vec[index])])
         return candidates
 
-
     def search_2(self):
         """
         For each element pick it's candidates
         :return: A sparse matrix of dimensionality (n_items,n_items) or (n_users,n_users) having 1 only in the candidates position
         """
+        print("NUOVA IMPLEMENTAZIONE")
         output_dict = defaultdict(list)
         for index, el in enumerate(self.buckets_matrix):
             candidates = list(self._get_vec_candidates(el))
             output_dict[index] = candidates
         return output_dict
+
+    def search_3(self):
+        """
+        For each element pick it's candidates
+        :return: A sparse matrix of dimensionality (n_items,n_items) or (n_users,n_users) having 1 only in the candidates position
+        """
+        print("OLD VERSION")
+        n = len(self.buckets_matrix)
+        output_matrix = np.zeros((n, n))
+        for index, el in enumerate(self.buckets_matrix):
+            candidates = list(self._get_vec_candidates(el))
+            output_matrix[index, candidates] = 1
+        return sp.csr_matrix(output_matrix)
 
     def create_mappings(self):
         """
@@ -101,9 +114,13 @@ class RandomProjections():
                 current_hash_table[strigified_id].append(item_idx)
         return hash_tables
 
-    def _initialize_projection_matrix(self):
+    def _initialize_projection_matrix(self, initialization="uniform"):
         """
         Useful to inizialize a matrix for projecting our dense vectors in binary ones
         :return:
         """
-        return np.random.rand(self.l, self.d, self.nbits) - .5
+        print(initialization)
+        if initialization == "gaussian":
+            return np.random.normal(0, 1, (self.l, self.d, self.nbits))
+        else:
+            return np.random.rand(self.l, self.d, self.nbits) - .5

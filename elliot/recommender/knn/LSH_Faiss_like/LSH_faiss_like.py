@@ -8,11 +8,11 @@ import time
 
 
 class IndexLSH:
-    def __init__(self, d, nbits):
+    def __init__(self, d, nbits, initialization="uniform"):
         self.d = d
         self.nbits = nbits
         self.codes = None
-        self.projection_matrix = np.random.randn(self.d, self.nbits)
+        self.projection_matrix = self._initialize_projection_matrix(initialization=initialization)
 
     def apply_preprocess(self, x):
         return x.dot(self.projection_matrix)
@@ -69,6 +69,17 @@ class IndexLSH:
         print("TEMPO ITERARE SUI RISULTATI", time.time() - prima)
 
         return distances, labels
+
+    def _initialize_projection_matrix(self, initialization="uniform"):
+        """
+        Useful to inizialize a matrix for projecting our dense vectors in binary ones
+        :return:
+        """
+        print(initialization)
+        if initialization == "gaussian":
+            return np.random.normal(0, 1, (self.d, self.nbits))
+        else:
+            return np.random.rand(self.d, self.nbits) - .5
 
 
 # Example usage

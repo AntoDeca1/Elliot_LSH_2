@@ -18,6 +18,7 @@ import multiprocessing as mp
 from tqdm import tqdm
 import torch
 import time
+from numba import njit
 
 
 class Similarity(object):
@@ -25,11 +26,12 @@ class Similarity(object):
     Simple kNN class
     """
 
-    def __init__(self, data, num_neighbors, similarity, implicit, nbits, ntables):
+    def __init__(self, data, num_neighbors, similarity, implicit, nbits, ntables, initialization):
         self._data = data
         self._ratings = data.train_dict
         self._num_neighbors = num_neighbors
         self._similarity = similarity
+        self._initialization = initialization
         if self._similarity in ["rp_faiss", "rp_custom", "rp_hashtables", "rp_custommp", "rp_faisslike"]:
             self._lsh_times_obj = {}
         else:
@@ -118,7 +120,8 @@ class Similarity(object):
             self._similarity_matrix = self.baseline(self._URM)
         elif similarity == "rp_hashtables":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
-            lsh_index = LSH_hashtables(d=len(self._items), nbits=self._nbits, l=self._ntables)
+            lsh_index = LSH_hashtables(d=len(self._items), nbits=self._nbits, l=self._ntables,
+                                       initialization=self._initialization)
             prima = time.time()
             lsh_index.add(self._URM)
             indexing_time = time.time() - prima
@@ -161,13 +164,14 @@ class Similarity(object):
             rp = FaissLSH(d=len(self._items), nbits=self._nbits)
         elif self._similarity == "rp_faisslike":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
-            rp = FaissLikeIndex(d=len(self._items), nbits=self._nbits)
+            rp = FaissLikeIndex(d=len(self._items), nbits=self._nbits, initialization=self._initialization)
         elif self._similarity == "rp_custom":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
-            rp = CustomLSH(d=len(self._items), nbits=self._nbits, l=self._ntables)
+            rp = CustomLSH(d=len(self._items), nbits=self._nbits, l=self._ntables, initialization=self._initialization)
         elif self._similarity == "rp_custommp":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
-            rp = CustomLSHmp(d=len(self._items), nbits=self._nbits, l=self._ntables)
+            rp = CustomLSHmp(d=len(self._items), nbits=self._nbits, l=self._ntables,
+                             initialization=self._initialization)
         prima = time.time()
         rp.add(user_item_matrix)
         indexing_time = time.time() - prima
@@ -197,7 +201,7 @@ class Similarity(object):
         return data, rows_indices, cols_indptr
 
     def compute_candidates_cosine_similarity_torch(self, user_item_matrix: np.array,
-                                                   candidate_matrix: np.array, batch_size=150):
+                                                   candidate_matrix: np.array, batch_size=100):
         """
         Computes cosine similarity between users and their candidate vectors using PyTorch for GPU acceleration.
 
@@ -323,6 +327,22 @@ class Similarity(object):
             # Store the results
             similarity_matrix[i, candidate_indices] = sim_scores
         return similarity_matrix
+
+    # def compute_candidates_cosine_similarity(self, user_item_matrix, candidates_dict):
+    #     similarity_matrix = np.zeros((len(self._users), len(self._users)))
+    #     # MULTIPROCESSING HERE
+    #     for i in range(len(self._users)):
+    #         candidate_indices = candidates_dict.getrow(i).nonzero()[1]
+    #         # Extract the relevant vectors from URM for these candidates
+    #         URM_candidates = user_item_matrix[candidate_indices, :]
+    #
+    #         # Compute cosine similarity between item i and its candidates
+    #         item_vector = user_item_matrix[i, :]
+    #         sim_scores = cosine_similarity(item_vector, URM_candidates)
+    #
+    #         # Store the results
+    #         similarity_matrix[i, candidate_indices] = sim_scores
+    #     return similarity_matrix
 
     def get_user_recs(self, u, mask, k):
         user_id = self._data.public_users.get(u)

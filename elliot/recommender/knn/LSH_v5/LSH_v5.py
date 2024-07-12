@@ -10,12 +10,12 @@ import multiprocessing as mp
 
 
 class RandomProjections():
-    def __init__(self, d, nbits, l=1, seed=42):
+    def __init__(self, d, nbits, l=1, seed=42, initialization="uniform"):
         self.nbits = nbits
         self.d = d
         self.l = l
         self.seed = seed
-        self.projection_matrix = self._initialize_projection_matrix()
+        self.projection_matrix = self._initialize_projection_matrix(initialization=initialization)
         self.all_hashes = None
         if self.seed is not None:
             np.random.seed(self.seed)
@@ -126,5 +126,9 @@ class RandomProjections():
         sorted_indices = hamming_dist.argsort()
         return sorted_indices
 
-    def _initialize_projection_matrix(self):
-        return np.random.rand(self.l, self.d, self.nbits) - 0.5
+    def _initialize_projection_matrix(self, initialization):
+        print(initialization)
+        if initialization == "gaussian":
+            return np.random.normal(0, 1, (self.l, self.d, self.nbits))
+        else:
+            return np.random.rand(self.l, self.d, self.nbits) - 0.5

@@ -21,7 +21,7 @@ Custom implementation that follows Faiss' idea:
 
 
 class RandomProjections():
-    def __init__(self, d, nbits, l=1, seed=42):
+    def __init__(self, d, nbits, l=1, seed=42, initialization="uniform"):
         """
         :param d: Dimensionality of our original vectors (e.g number of users in the dataset)
         :param nbits: Number of hyperplanes
@@ -32,7 +32,7 @@ class RandomProjections():
         self.nbits = nbits
         self.d = d
         self.l = l
-        self.projection_matrix = self._initialize_projection_matrix()
+        self.projection_matrix = self._initialize_projection_matrix(initialization=initialization)
         self.seed = seed
         self.all_hashes = None
         if self.seed is not None:
@@ -140,10 +140,13 @@ class RandomProjections():
         sorted_indices = hamming_dist.argsort()
         return sorted_indices
 
-    def _initialize_projection_matrix(self):
+    def _initialize_projection_matrix(self, initialization="uniform"):
         """
         Useful to inizialize a matrix for projecting our dense vectors in binary ones
         :return:
         """
-        # return np.random.randn(self.l, self.d, self.nbits)
-        return np.random.rand(self.l, self.d, self.nbits) - .5
+        print(initialization)
+        if initialization == "gaussian":
+            return np.random.normal(0, 1, (self.l, self.d, self.nbits))
+        else:
+            return np.random.rand(self.l, self.d, self.nbits) - .5

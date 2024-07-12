@@ -21,7 +21,7 @@ class Similarity(object):
     Simple kNN class
     """
 
-    def __init__(self, data, num_neighbors, similarity, implicit, nbits, ntables):
+    def __init__(self, data, num_neighbors, similarity, implicit, nbits, ntables, initialization):
         self._data = data
         self._ratings = data.train_dict
         self._num_neighbors = num_neighbors
@@ -35,6 +35,7 @@ class Similarity(object):
         # NEW CODE HERE (LSH parameters)
         self._nbits = nbits
         self._ntables = ntables
+        self._initialization = initialization
 
         if self._implicit:
             self._URM = self._data.sp_i_train
@@ -107,7 +108,8 @@ class Similarity(object):
             self._similarity_matrix = self.baseline(self._URM.T)
         elif similarity == "rp_hashtables":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
-            lsh_index = LSH_hashtables(d=len(self._users), nbits=self._nbits, l=self._ntables)
+            lsh_index = LSH_hashtables(d=len(self._users), nbits=self._nbits, l=self._ntables,
+                                       initialization=self._initialization)
             prima = time.time()
             lsh_index.add(self._URM.T)
             indexing_time = time.time() - prima
@@ -249,13 +251,14 @@ class Similarity(object):
             rp = FaissLSH(d=len(self._users), nbits=self._nbits)
         elif self._similarity == "rp_faisslike":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: 1 ")
-            rp = FaissLikeIndex(d=len(self._users), nbits=self._nbits)
+            rp = FaissLikeIndex(d=len(self._users), nbits=self._nbits, initialization=self._initialization)
         elif self._similarity == "rp_custom":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
-            rp = CustomLSH(d=len(self._users), nbits=self._nbits, l=self._ntables)
+            rp = CustomLSH(d=len(self._users), nbits=self._nbits, l=self._ntables, initialization=self._initialization)
         elif self._similarity == "rp_custommp":
             print(f"{self._similarity} similarity with nbits: {self._nbits} and ntables: {self._ntables} ")
-            rp = CustomLSHmp(d=len(self._users), nbits=self._nbits, l=self._ntables)
+            rp = CustomLSHmp(d=len(self._users), nbits=self._nbits, l=self._ntables,
+                             initialization=self._initialization)
         else:
             raise Exception("The required similarity does not exists")
         prima = time.time()
