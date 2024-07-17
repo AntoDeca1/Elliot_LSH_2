@@ -144,9 +144,14 @@ def create_color_map(unique_combinations):
     return color_map
 
 
-def plot_pareto_frontier(experiments_data, pareto_efficient_points, unique_combinations, color_map, plot_dir):
+def plot_pareto_frontier(experiments_data, pareto_efficient_points, unique_combinations, color_map, plot_dir,
+                         best_point):
     plt.figure(figsize=(20, 10))  # Further increased width to 20
+
+    pareto_models = set(pareto_efficient_points['model'])
     for i, row in experiments_data.iterrows():
+        if row["model"] in pareto_models:
+            continue
         color = color_map[unique_combinations[
             (unique_combinations['nbits'] == row['nbits']) & (unique_combinations['ntables'] == row['ntables'])].index[
             0]]
@@ -165,6 +170,10 @@ def plot_pareto_frontier(experiments_data, pareto_efficient_points, unique_combi
         plt.scatter(row['similarity_time_decrease_percent'], row['NDCG_loss_percent'], edgecolor='black',
                     facecolor=color, s=100, linewidth=1.5,
                     label=f'Pareto nbits={row["nbits"]}, ntables={row["ntables"]}' if f'Pareto nbits={row["nbits"]}, ntables={row["ntables"]}' not in legend_texts else "")
+    if best_point is not None:
+        # Highlight the best experiment with a cross
+        plt.scatter(best_point['similarity_time_decrease_percent'], best_point['NDCG_loss_percent'], color='red',
+                    marker='x', s=200, label=f'Best nbits={best_point["nbits"]}, ntables={best_point["ntables"]} ')
 
     plt.axhline(0, color='gray', lw=0.5)  # NDCG loss 0 line
     plt.axvline(0, color='green', linestyle='--', label='No Similarity Time Change')
@@ -185,7 +194,7 @@ def plot_pareto_frontier(experiments_data, pareto_efficient_points, unique_combi
     plt.show()
 
 
-def plot_pareto_only(pareto_efficient_points, unique_combinations, color_map, plot_dir):
+def plot_pareto_only(pareto_efficient_points, unique_combinations, color_map, plot_dir, best_point):
     plt.figure(figsize=(20, 10))  # Further increased width to 20
     for _, row in pareto_efficient_points.iterrows():
         color = color_map[unique_combinations[
@@ -194,6 +203,8 @@ def plot_pareto_only(pareto_efficient_points, unique_combinations, color_map, pl
         plt.scatter(row['similarity_time_decrease_percent'], row['NDCG_loss_percent'], edgecolor='black',
                     facecolor=color, s=100, linewidth=1.5,
                     label=f'Pareto nbits={row["nbits"]}, ntables={row["ntables"]}')
+    plt.scatter(best_point['similarity_time_decrease_percent'], best_point['NDCG_loss_percent'], color='red',
+                marker='x', s=200, label=f'Best nbits={best_point["nbits"]}, ntables={best_point["ntables"]} ')
 
     plt.axhline(0, color='gray', lw=0.5)  # NDCG loss 0 line
     plt.axvline(0, color='green', linestyle='--', label='No Similarity Time Change')
@@ -211,7 +222,7 @@ def plot_pareto_only(pareto_efficient_points, unique_combinations, color_map, pl
 
 
 def plot_pareto_bars(experiments_data, color_map, unique_combinations, pareto_efficient_points, value_column, ylabel,
-                     title, plot_dir):
+                     title, plot_dir, best_point):
     pareto_data = experiments_data.loc[pareto_efficient_points.index]
     sorted_data = pareto_data.sort_values(by=value_column, ascending=False).reset_index(drop=True)
 
@@ -230,6 +241,13 @@ def plot_pareto_bars(experiments_data, color_map, unique_combinations, pareto_ef
     for bar, (_, row) in zip(bars, sorted_data.iterrows()):
         yval = bar.get_height()
         ax.text(bar.get_x() + bar.get_width() / 2, yval, f"{round(yval, 2)}%", ha='center', va='bottom')
+
+    if best_point is not None:
+        # Highlight the best experiment with a dotted border
+        best_index = sorted_data.index[sorted_data['model'] == best_point['model']].tolist()[0]
+        bars[best_index].set_edgecolor('red')
+        bars[best_index].set_linewidth(2)
+        bars[best_index].set_linestyle('dotted')
 
     # Add title
     ax.set_title(title)
@@ -354,7 +372,7 @@ def plot_ndcg_loss_bar(experiments_data, color_map, unique_combinations, plot_di
     plt.show()
 
 
-def print_pareto_details(pareto_efficient_points, baseline_data, plot_dir):
+def print_pareto_details(pareto_efficient_points, baseline_data, plot_dir, best_point):
     print("\nPareto Efficient Experiments:")
     for idx, row in pareto_efficient_points.iterrows():
         print(f"Model: {row['model']}")
@@ -366,6 +384,19 @@ def print_pareto_details(pareto_efficient_points, baseline_data, plot_dir):
         print(f"  nbits: {row['nbits']}")
         print(f"  ntables: {row['ntables']}")
         print("-" * 40)
+
+    if best_point is not None:
+        print("\n Best Experiment")
+        print(f"Model: {best_point['model']}")
+        print(f"  nDCG Rendle 2020: {best_point['nDCGRendle2020']}")
+        print(f"  Similarity Time: {best_point['similarity_time']} seconds")
+        print(f"  NDCG Loss: {best_point['NDCG_loss']}")
+        print(f"  NDCG Loss Percent: {best_point['NDCG_loss_percent']}%")
+        print(f"  Similarity Time Decrease Percent: {best_point['similarity_time_decrease_percent']}%")
+        print(f"  nbits: {best_point['nbits']}")
+        print(f"  ntables: {best_point['ntables']}")
+        print("-" * 40)
+
     file_name = "pareto_points.csv"
     print("\nBaseline Details:")
     print(f"Model: {baseline_data['model'].iloc[0]}")
@@ -374,9 +405,9 @@ def print_pareto_details(pareto_efficient_points, baseline_data, plot_dir):
     pareto_efficient_points.to_csv(os.path.join(plot_dir, file_name))
 
 
-def plot_fairness(baseline_data, experiments_data, fairness_cols, color_map, plot_dir, unique_combinations):
+def plot_fairness(baseline_data, experiments_data, fairness_cols, color_map, plot_dir, unique_combinations, best_point):
     """
-    Useful function for plotting comparisons between baseline and bias metrics. It creates a plot for each user group and shows the bias compared to the baseline.
+    Useful function for plotting comparisons between baseline and fairness metrics. It creates a plot for each user group and shows the bias compared to the baseline.
     In case the metric of interest is "BiasDisparityBR", if the "BiasDisparityBS" is in our results it's added to the comparison
     :param baseline_data:
     :param experiments_data:
@@ -395,14 +426,14 @@ def plot_fairness(baseline_data, experiments_data, fairness_cols, color_map, plo
 
     if metric_name in ["BiasDisparityBR", "BiasDisparityBD"]:
         plot_Bias_Disparity(baseline_data, baseline_biases, experiments_biases, fairness_cols, metric_name,
-                            unique_combinations, color_map, fairness_dir)
+                            unique_combinations, color_map, fairness_dir, best_point)
     else:
         plot_RankingOppurtinity(baseline_biases, experiments_biases, fairness_cols, metric_name,
-                                unique_combinations, color_map, fairness_dir)
+                                unique_combinations, color_map, fairness_dir, best_point)
 
 
 def plot_Bias_Disparity(baseline_data, baseline_biases, experiments_biases, fairness_cols, metric_name,
-                        unique_combinations, color_map, fairness_dir):
+                        unique_combinations, color_map, fairness_dir, best_point):
     user_groups = set()
     item_groups = set()
 
@@ -433,13 +464,15 @@ def plot_Bias_Disparity(baseline_data, baseline_biases, experiments_biases, fair
 
     # Create a plot for each user group
     for user_group in user_groups:
-        plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, item_groups,
+        plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, best_point,
+                          item_groups,
                           user_group)
 
 
-def plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, item_groups=None,
+def plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, best_point,
+                      item_groups=None,
                       user_group=None,
-                      default_color="grey"):
+                      default_color="grey", ):
     """
     Function for plotting grouped bars plots
     Used for FairnessMetrics(BiasDisparityBR,BiasDisparityBD,REO,RSP)
@@ -456,9 +489,12 @@ def plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_di
     """
     fig, ax = plt.subplots(figsize=(20, 10))
 
-    bar_width = 0.8 / len(combined_data)
+    bar_width = 1.5 / len(combined_data)  # Make bars narrower to add space within groups
+    group_spacing = 2.0  # Add more space between different item groups
+    intra_group_spacing = 0  # Add space between bars within each group
+
     if item_groups is not None:
-        x = np.arange(len(item_groups))
+        x = np.arange(len(item_groups)) * (1 + group_spacing)  # Adjust x to include spacing between groups
     else:
         x = np.arange(1)
     num_bars = len(combined_data)
@@ -467,12 +503,14 @@ def plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_di
         user_group = f"{user_group}:"
     else:
         user_group = ""
+
     for i, (_, row) in enumerate(combined_data.iterrows()):
         if item_groups is not None:
             biases = [row[f"{user_group}{item_group}"] if f"{user_group}{item_group}" in row else 0 for item_group in
                       item_groups]
         else:
             biases = [row[metric_name]]
+
         if np.isnan(row["nbits"]) or np.isnan(row["ntables"]):
             if row["model"] == "BiasSource":
                 color = "red"
@@ -485,12 +523,21 @@ def plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_di
                     unique_combinations["ntables"] == row["ntables"])].index[0]
             color = color_map.get(color_index, default_color)
             label = f'nbits={row["nbits"]}, ntables={row["ntables"]}'
-        bar_positions = x + (i - num_bars / 2) * bar_width
-        ax.bar(bar_positions, biases, bar_width, label=label, color=color)
-        for j, bias in enumerate(biases):
-            ax.text(bar_positions[j], bias, f"{round(bias, 2)}", ha='center', va='bottom')
 
-    ax.set_xlabel('Item Groups')
+        bar_positions = x + (i - num_bars / 2) * (bar_width + intra_group_spacing)  # Add intra-group spacing
+        bars = ax.bar(bar_positions, biases, bar_width, label=label, color=color)
+
+        # for j, bias in enumerate(biases):
+        #     ax.text(bar_positions[j], bias, f"{bias:.3f}", ha='center', va='bottom')  # Show 3 decimal places
+
+        # Highlight the best experiment with a dotted border
+        if best_point is not None:
+            if row['model'] == best_point['model']:
+                for bar in bars:
+                    bar.set_edgecolor('red')
+                    bar.set_linewidth(2)
+                    bar.set_linestyle('dotted')
+
     ax.set_ylabel(f'{metric_name}')
     if user_group != "":
         ax.set_title(f'Metric: {metric_name} for User Group {user_group}')
@@ -498,6 +545,7 @@ def plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_di
         ax.set_title(f'Metric: {metric_name} ')
     ax.set_xticks(x)
     if item_groups is not None:
+        ax.set_xlabel('Item Groups')
         ax.set_xticklabels([f"Item {item_group}" for item_group in item_groups])
     handles, labels = ax.get_legend_handles_labels()
     unique_labels = dict(zip(labels, handles))
@@ -562,7 +610,7 @@ def rename_dataframe_fairness_cols(baseline_biases, experiments_biases, fairness
 
 
 def plot_RankingOppurtinity(baseline_biases, experiments_biases, fairness_cols, metric_name,
-                            unique_combinations, color_map, fairness_dir):
+                            unique_combinations, color_map, fairness_dir, best_point):
     item_groups = set()
 
     # Rename the original column names in a more readable format
@@ -574,11 +622,12 @@ def plot_RankingOppurtinity(baseline_biases, experiments_biases, fairness_cols, 
     default_color = 'grey'
 
     # Plot showing the Ranking Bias for each item category
-    plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, item_groups)
+    plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name, best_point, item_groups)
 
     # Plot showing the final Ranking Bias
     single_metric_name = metric_name.split("-")[0]
     plot_grouped_bars(combined_data, unique_combinations, color_map, fairness_dir, metric_name=single_metric_name,
+                      best_point=best_point,
                       item_groups=None)
 
 
@@ -588,10 +637,10 @@ def find_best_experiment_static(baseline_path, experiments_path):
     1) Compare each single experiment with the baseline
     2) Create a scatter plot showing the similarity decrease and ndcg loss with respect to the baseline
     3) Filter the previour scatter plot showing only the pareto efficient points(for better visualization)
-    4) TODO: Highlight the best experiments(the one that has the greatest gap between Similarity decrease and NDCG Loss)
-    !NEW
+    !----------------NEW----------------------------
+    4) Highlight the best experiments with a red dotted border (the one that has the greatest gap between Similarity decrease and NDCG Loss)
     5) Integrate the possibility of comparing Fairness matrics(BiasDisparityBR,BiasDisparityBS,BiasDisparityBD,REO,RSP)
-    6) TODO: Integrate the possibility of comparing novelty diversity, metrics(DOING!)
+    6) Integrate the possibility of comparing novelty and diversity metrics
     :param baseline_path:
     :param experiments_path:
     :return:
@@ -601,7 +650,7 @@ def find_best_experiment_static(baseline_path, experiments_path):
     experiments_data = pd.read_csv(experiments_path, sep='\t')
 
     # base path where the results will be saved
-    base_path = "/".join(baseline_path.split("/")[:-1], )
+    base_path = "/".join(experiments_path.split("/")[:-1], )
     # name of the directory where the results will be saved in
     dir_name = experiments_path.split("/")[-1].split(".")[0] + "_comparison"
 
@@ -636,27 +685,31 @@ def find_best_experiment_static(baseline_path, experiments_path):
     pareto_efficient_points = valid_experiments[pareto_efficient_mask]
 
     # Idea: Select the best point the one that has the greatest gap between similarity decrease and ndcg_loss_percent
-    best_point_index = np.argmax([similarity_decrease - ndcg_loss for ndcg_loss, similarity_decrease in costs])
-    best_point = valid_experiments.iloc[best_point_index]
+    if len(costs) != 0:
+        best_point_index = np.argmax([similarity_decrease - ndcg_loss for ndcg_loss, similarity_decrease in costs])
+        best_point = valid_experiments.iloc[best_point_index]
+    else:
+        best_point = None
 
     # Create a color map for each unique nbits and ntables combination
     unique_combinations = experiments_data[['nbits', 'ntables']].drop_duplicates().reset_index()
     color_map = create_color_map(unique_combinations)
 
-    # Plotting results with matplotlib
-    plot_pareto_frontier(experiments_data, pareto_efficient_points, unique_combinations, color_map, plot_dir)
+    # Plotting results
+    plot_pareto_frontier(experiments_data, pareto_efficient_points, unique_combinations, color_map, plot_dir,
+                         best_point)
     if len(unique_combinations) > 12:
-        plot_pareto_only(pareto_efficient_points, unique_combinations, color_map, plot_dir)
+        plot_pareto_only(pareto_efficient_points, unique_combinations, color_map, plot_dir, best_point)
     plot_similarity_time_bar(experiments_data, color_map, unique_combinations, plot_dir)
     plot_ndcg_loss_bar(experiments_data, color_map, unique_combinations, plot_dir)
     plot_pareto_bars(experiments_data, color_map, unique_combinations, pareto_efficient_points,
                      'similarity_time_decrease_percent', 'Similarity Time Decrease (%)',
-                     'Pareto Efficient Similarity Time Decrease', plot_dir)
+                     'Pareto Efficient Similarity Time Decrease', plot_dir, best_point)
     plot_pareto_bars(experiments_data, color_map, unique_combinations, pareto_efficient_points,
-                     'NDCG_loss_percent', 'NDCG Loss Percent', 'Pareto Efficient NDCG Loss', plot_dir)
+                     'NDCG_loss_percent', 'NDCG Loss Percent', 'Pareto Efficient NDCG Loss', plot_dir, best_point)
 
     # Print comprehensive comparison and best experiment details
-    print_pareto_details(pareto_efficient_points, baseline_data, plot_dir)
+    print_pareto_details(pareto_efficient_points, baseline_data, plot_dir, best_point)
 
     # Fairness metrics analysis
     # BiasDisparityBS is independent from the model and so is added as extra BAR in the plot if present
@@ -669,25 +722,26 @@ def find_best_experiment_static(baseline_path, experiments_path):
         n_experiment_fmetric_cols = len(experiment_fmetric_cols)
         if n_baseline_fmetric_cols != 0 and n_experiment_fmetric_cols != 0 and (
                 n_baseline_fmetric_cols == n_experiment_fmetric_cols):
-            plot_fairness(baseline_data, experiments_data, baseline_fmetric_cols, color_map, plot_dir,
-                          unique_combinations)
-    single_metrics = ["Gini", "SEntropy"]
+            plot_fairness(baseline_data, pareto_efficient_points, baseline_fmetric_cols, color_map, plot_dir,
+                          unique_combinations, best_point)
+    single_metrics = ["Gini", "SEntropy", "ItemCoverage", "EFD", "EPC"]
     for f_metric in single_metrics:
         if (f_metric in baseline_data.columns) and (f_metric in experiments_data.columns):
-            plot_single_metric(baseline_data, experiments_data, [f_metric], color_map, plot_dir,
-                               unique_combinations)
+            plot_single_metric(baseline_data, pareto_efficient_points, [f_metric], color_map, plot_dir,
+                               unique_combinations, best_point)
 
     return pareto_efficient_points
 
 
-def plot_single_metric(baseline_data, experiments_data, metric_col, color_map, plot_dir, unique_combinations):
+def plot_single_metric(baseline_data, experiments_data, metric_col, color_map, plot_dir, unique_combinations,
+                       best_point):
     baseline_biases = baseline_data[["model"] + metric_col]
     experiments_biases = experiments_data[["model", "nbits", "ntables"] + metric_col]
     metric_name = metric_col[0]
     output_dir = os.path.join(plot_dir, metric_name)
     os.makedirs(output_dir, exist_ok=True)
     combined_data = pd.concat([baseline_biases, experiments_biases])
-    plot_grouped_bars(combined_data, unique_combinations, color_map, output_dir, metric_name)
+    plot_grouped_bars(combined_data, unique_combinations, color_map, output_dir, metric_name, best_point)
 
 
 def compare_experiments(first_experiments_path, second_experiments_path, variable_parameter="nbits"):

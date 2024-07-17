@@ -122,5 +122,7 @@ class RandomProjections():
         print(initialization)
         if initialization == "gaussian":
             return np.random.normal(0, 1, (self.l, self.d, self.nbits))
-        else:
+        elif initialization == "uniform":
             return np.random.rand(self.l, self.d, self.nbits) - .5
+        else:
+            return np.random.choice([-1, 1], size=(self.l, self.d, self.nbits))
