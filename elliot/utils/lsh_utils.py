@@ -11,9 +11,15 @@ from pathlib import Path
 
 
 def plot_and_save_results(trials, config, print_csv=True):
+    """
+    Function called at the end of the experiments if plot_lsh:True
+    :param trials:
+    :param config:
+    :param print_csv:
+    :return:
+    """
     # DataFrame to store all the data
     cutoff = config["experiment"]["evaluation"]["cutoffs"]
-    # Determine the number of subplots needed
 
     # Create a results directory if it doesn't exist
     results_dir = 'results_lsh/experiments'
@@ -115,6 +121,127 @@ def plot_and_save_results(trials, config, print_csv=True):
                                     f"{model_name_full}_{variable_parameter}_{neighbors}_{today}_results.csv")
             results_df.to_csv(csv_path, index=False)
             results_df.to_excel(excel_path, index=False)
+
+
+def create_subplots(data_path):
+    """
+    Utility function that takes an Elliot tsv and create line plots for each metric
+    Works only if there is only one variable parameter(list)
+    Made exclusively for LSH experiments
+    Usage: create_subplots.py
+    """
+    # DataFrame to store all the data
+
+    df = pd.read_csv(data_path, sep="\t")
+    filtered_cols = ['model', 'nDCGRendle2020', 'Recall', 'HR', 'Precision', 'MAP', 'MRR', 'similarity_time',
+                     'indexing_time', 'candidates_retrieval_time', 'similarity_matrix_time']
+    metrics_to_plot = filtered_cols[1:]
+    # Select only the desired metrics
+    df_filtered = df[filtered_cols]
+    # Add nbits and ntables as separate columns
+    df_filtered = expand_results_dataframe(df_filtered)
+    # Create a results directory if it doesn't exist
+    results_dir = 'results_lsh/subplots'
+    # results_dir = config.results_dir
+    os.makedirs(results_dir, exist_ok=True)
+
+    results_subdir = data_path.split("/")[2]
+
+    final_path = os.path.join(results_dir, results_subdir)
+    os.makedirs(final_path, exist_ok=True)
+
+    num_metrics = len(metrics_to_plot)
+    cols = 3  # Number of columns for subplots
+    rows = (num_metrics + cols - 1) // cols  # Calculate required number of rows
+
+    data = []
+    explorable_parameters = ["nbits", "neighbors", "ntables"]
+    fixed_parameters = []
+    variable_parameter = None
+    fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows), squeeze=False)
+    axes = axes.flatten()  # Flatten the axes array for easy iteration
+    model_string = df["model"][0]
+    model_name = model_string.split("=")[0].split("_")[0]
+    similarity = "_".join(model_string.split("=")[2].split("_")[:2])
+    neighbors = int(model_string.split("=")[1].split("_")[0])
+    model_name_full = model_name + "::" + similarity
+
+    param_names = ["nbits", "ntables", "neighbors"]
+    variable_parameter = None
+    fixed_parameter = None
+
+    for param in param_names:
+        if len(set(df_filtered[param].tolist())) != 1:
+            variable_parameter = param
+        else:
+            fixed_parameters.append(param)
+
+    param_values = []
+    metrics_dict = {metric: [] for metric in metrics_to_plot}
+
+    # Gather data from experiments
+    for experiment in df_filtered.iterrows():
+        param_values.append(experiment[1][variable_parameter])
+        experiment_data = {
+            'Model': model_name_full,
+            fixed_parameters[0]: experiment[1][fixed_parameters[0]],
+            fixed_parameters[1]: experiment[1][fixed_parameters[1]],
+            variable_parameter: experiment[1][variable_parameter]
+        }
+        for metric in metrics_to_plot:
+            metrics_dict[metric].append(experiment[1][metric])
+            experiment_data[metric] = experiment[1][metric]
+        data.append(experiment_data)
+
+    # Sort values based on the parameter values
+    param_values_indices = np.argsort(param_values)
+    ordered_param_values = np.asarray(param_values)[param_values_indices]
+
+    # Generate directory name for current model with date
+    today = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    model_results_dir = os.path.join(final_path, f"{model_name_full}_{today}")
+    os.makedirs(model_results_dir, exist_ok=True)
+
+    # Plot each metric in a different subplot and save the final plot
+    for idx, metric in enumerate(metrics_to_plot):
+        ax = axes[idx]
+        ordered_values = np.asarray(metrics_dict[metric])[param_values_indices]
+        ax.plot(ordered_param_values, ordered_values, marker="o",
+                label=f"{model_name_full} ({fixed_parameters[0]}&{fixed_parameters[1]}={experiment[1][fixed_parameters[0]]}&{experiment[1][fixed_parameters[1]]})")
+
+        # Annotate percentage changes
+        for i in range(1, len(ordered_param_values)):
+            percent_change = ((ordered_values[i] - ordered_values[i - 1]) / ordered_values[i - 1]) * 100
+            ax.annotate(f'{percent_change:.1f}%', (ordered_param_values[i], ordered_values[i]),
+                        textcoords="offset points", xytext=(0, 10), ha='center')
+
+        ax.set_xlabel(variable_parameter)
+        ax.set_ylabel(metric)
+        ax.legend()
+
+    # Adjust layout and show plot
+    plot_path = os.path.join(model_results_dir, f"{model_name_full}_{variable_parameter}_{neighbors}_{today}.png")
+    plt.savefig(plot_path)
+    plt.tight_layout()
+    plt.show()
+
+    # Convert list to DataFrame
+    results_df = pd.DataFrame(data)
+    # Sort DataFrame by 'Model' and 'Parameter Value'
+    results_df.sort_values(by=['Model', variable_parameter], inplace=True)
+
+    # Calculate percentage changes for each metric within each model
+    for metric in metrics_to_plot:
+        results_df[metric + '_pct_change'] = results_df.groupby('Model')[metric].pct_change() * 100
+
+    # Save DataFrame to CSV
+    # if print_csv:
+    #     excel_path = os.path.join(model_results_dir,
+    #                               f"{model_name_full}_{variable_parameter}_{neighbors}_{today}_results.xlsx")
+    #     csv_path = os.path.join(model_results_dir,
+    #                             f"{model_name_full}_{variable_parameter}_{neighbors}_{today}_results.csv")
+    #     results_df.to_csv(csv_path, index=False)
+    #     results_df.to_excel(excel_path, index=False)
 
 
 def is_pareto_efficient(costs):
@@ -752,6 +879,10 @@ def compare_experiments(first_experiments_path, second_experiments_path, variabl
     first_experiment_model_name = first_experiments_data["model"][0].split("=")[2]
     second_experiment_model_name = second_experiments_data["model"][0].split("=")[2]
 
+    # Expand and sort dataframes
+    first_experiments_data = expand_results_dataframe(first_experiments_data).sort_values(by=variable_parameter)
+    second_experiments_data = expand_results_dataframe(second_experiments_data).sort_values(by=variable_parameter)
+
     metrics = first_experiments_data.columns[1:].tolist()
     if len(first_experiments_data) != len(second_experiments_data):
         raise Exception("The two dataframe should have the same shape")
@@ -762,10 +893,6 @@ def compare_experiments(first_experiments_path, second_experiments_path, variabl
 
     # Create the directory if it does not exist
     os.makedirs(dir_name, exist_ok=True)
-
-    # Expand and sort dataframes
-    first_experiments_data = expand_results_dataframe(first_experiments_data).sort_values(by=variable_parameter)
-    second_experiments_data = expand_results_dataframe(second_experiments_data).sort_values(by=variable_parameter)
 
     num_metrics = len(metrics)
     cols = 3  # Number of columns for subplots
@@ -882,6 +1009,7 @@ def expand_results_dataframe(results_df: pd.DataFrame):
     # Parse nbits and ntables from model description
     if "ItemKNN" in results_df["model"][0]:
         index += 1
-    results_df['nbits'] = [int(el.split("_")[index].split("=")[1]) for el in results_df["model"]]
-    results_df['ntables'] = [int(el.split("_")[index + 1].split("=")[1]) for el in results_df["model"]]
+    results_df.insert(2, "nbits", [int(el.split("_")[index].split("=")[1]) for el in results_df["model"]], True)
+    results_df.insert(2, "ntables", [int(el.split("_")[index + 1].split("=")[1]) for el in results_df["model"]], True)
+    results_df.insert(2, "neighbors", [int(el.split("=")[1].split("_")[0]) for el in results_df["model"]], True)
     return results_df
